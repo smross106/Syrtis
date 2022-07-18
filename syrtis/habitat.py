@@ -61,12 +61,23 @@ class Habitat:
 
         self.radius_outer = shell.radius_outer
     
-    def build_thermal_resistance(self, inner_temp):
-        pass
+    def build_thermal_resistances(self, shell_temperatures, g):
+        """
+        Outputs the thermal resistances of each shell layer
+        
+        Args:
+            shell_temperatures (list of floats):    list of len(self._shells)+1, referring to temperatures at the boundary
+                                                    of each material. 0th is the inner wall temperature of innermost shell,
+                                                    1st is outer wall of innermost/inner wall of second.
+            g (float):                              gravity
+        """
+        assert len(shell_temperatures) == len(self._shells)+1, "'shell_temperatures' must be equal to number of Shells plus one"
+
+
 
 
 steel = Solid(150, 8700, 500)
-co2 = ConstrainedGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)
+co2 = ConstrainedIdealGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)
 
 starship = Habitat("vertical", 70)
 starship.create_static_shell(co2, 4.5)

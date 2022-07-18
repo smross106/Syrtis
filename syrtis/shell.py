@@ -70,7 +70,7 @@ class StaticShell(Shell):
         
 
 
-    def thermal_resistance(self, T_delta, g):
+    def thermal_resistance(self, T_avg, T_delta, g):
         """
         Calculates the thermal resistance of the Shell
         Determines which equation to use and uses it
@@ -84,8 +84,8 @@ class StaticShell(Shell):
         elif type(self.material) == Solid:
             self.thermal_resistance = self.thermal_resistance_solid()
         
-        elif type(self.material) == ConstrainedGas:
-            self.thermal_resistance = self.thermal_resistance_wide_annulus(T_delta, g)
+        elif type(self.material) == ConstrainedIdealGas:
+            self.thermal_resistance = self.thermal_resistance_wide_annulus(T_avg, T_delta, g)
             
 
     def thermal_resistance_solid(self):
@@ -94,8 +94,8 @@ class StaticShell(Shell):
 
         return(R_th)
 
-    def thermal_resistance_wide_annulus(self, T_delta, g):
-        Ra = self.material.Ra(T_delta, g, self.thickness)
+    def thermal_resistance_wide_annulus(self, T_avg, T_delta, g):
+        Ra = self.material.Ra(T_avg, T_delta, g, self.thickness)
 
         if self.configuration == "horizontal":
             # Using equation 9-56 from Reference [2] (via Raithby and Hollands, 1975)
