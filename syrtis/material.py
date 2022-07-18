@@ -88,3 +88,5 @@ class ConstrainedGas(Material):
 
 
 material_classes = [Solid, ConstrainedGas]
+
+ambient_atmosphere = ConstrainedGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)

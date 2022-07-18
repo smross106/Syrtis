@@ -9,15 +9,9 @@ References:
 
 """
 
-
-
-from distutils.command.config import config
-
-
 if __name__ == "__main__":
     from material import *
-else:
-    from syrtis.material import *
+
 
 
 class Shell:
@@ -33,14 +27,16 @@ class StaticShell(Shell):
     This can be a solid material (eg a layer of insulation or structural hull) or a layer of gas without forced flow.
 
     Args:
+        configuration (str):        either 'horizontal' or 'vertical' to specify orientation of axis
         material (syrtis.Material): the material of the Shell
         radius_inner (float):       the internal radius of the Shell (m)
         thickness (float):          the thickness of the Shell (m)
+        length (float):             the length of the Shell (m)
         external (bool) :           if True, the outer surface of the Shell is taken as the outer surface of the whole system. Default False
         thermal_resistance (float): an override for simple calculation of the Shell's thermal resistance. Ignored when not a positive number
     """
 
-    def __init__(self, configuration, material, radius_inner, thickness, length, external=False, thermal_resistance=0.0):
+    def __init__(self, configuration, material, radius_inner, thickness, length, external=False, thermal_resistance=0):
 
         assert configuration == "horizontal" or configuration == "vertical", "'configuration' must be either 'horizontal' or 'vertical'"
 
@@ -53,7 +49,6 @@ class StaticShell(Shell):
         assert thickness > 0, "Shell 'thickness' must be a positive value"
 
         assert isinstance(length, Number), "Shell 'length' must be a numerical value"
-        assert length > 0, "Shell 'length' must be a positive value"
 
         self.configuration = configuration
         self.material = material
@@ -64,18 +59,32 @@ class StaticShell(Shell):
 
         self.length = length
 
+        self.external = external
+
+        if thermal_resistance == 0:
+            self.calculate_thermal_resistance = True
+            self.thermal_resistance = -1
+        else:
+            self.calculate_thermal_resistance = False
+            self.thermal_resistance = thermal_resistance
+        
+
+
     def thermal_resistance(self, T_delta, g):
         """
         Calculates the thermal resistance of the Shell
         Determines which equation to use and uses it
         """
+        if self.calculate_thermal_resistance == False:
+            pass
+            
+        elif self.radius_inner == 0:
+            self.thermal_resistance = 0
 
-        if type(self.material) == Solid:
+        elif type(self.material) == Solid:
             self.thermal_resistance = self.thermal_resistance_solid()
         
         elif type(self.material) == ConstrainedGas:
-            thickness_ratio = self.thickness / self.radius_inner
-
             self.thermal_resistance = self.thermal_resistance_wide_annulus(T_delta, g)
             
 
@@ -135,9 +144,11 @@ class StaticShell(Shell):
         return(R_th)
 
 
+if __name__ == "__main__":
+    co2 = ConstrainedGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)
+    steel = Solid(150, 8700, 500)
 
-co2 = ConstrainedGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)
-steel = Solid(150, 8700, 500)
+    s = StaticShell("horizontal", co2, 1, 0.2, 1)
+    s.thermal_resistance(10, 9.81)
 
-s = StaticShell("horizontal", co2, 1, 0.2, 1)
-s.thermal_resistance(10, 3.8)
+    print(s.thermal_resistance)
