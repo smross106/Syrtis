@@ -101,3 +101,41 @@ class Solver:
 
             
 
+if __name__ == "__main__":
+    steel = Solid("Steel", 150, 8700, 500)
+    co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
+
+    equator = Configuration("equator", "constant temperature",
+        210, 0.1, 210, 1, "cross", 90, 90, 580, T_habitat=190)
+
+    bocachica = Configuration("bocachica", "constant temperature",
+    300, 1, 300, 5, "cross", 90, 90, 604, T_habitat=80)
+    
+    heat_gain = []
+    thicknesses = np.logspace(-3, -0.5, 100)
+    #thicknesses = np.linspace(0.001, 1.001, 500)
+
+    for thickness in thicknesses:
+        tankfarm = Habitat("vertical", 50)
+        tankfarm.create_static_shell(co2, 1)
+        tankfarm.create_static_shell(steel, 0.001)
+        tankfarm.create_static_shell(co2, thickness)
+        tankfarm.create_static_shell(steel, 0.001)
+
+        
+
+        s = Solver("test", tankfarm, bocachica)
+        q = s.iterate_constant_temperature()
+
+        heat_gain.append(-q)
+    
+    import matplotlib.pyplot as plt
+
+    plt.scatter(thicknesses, heat_gain)
+    plt.xscale("log")
+    plt.xlim(9e-4, 1.5)
+    plt.xlabel("Gap between inner and outer wall (m)")
+    plt.ylabel("Heat gain into tank (W)")
+    plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
+    plt.show()
+
