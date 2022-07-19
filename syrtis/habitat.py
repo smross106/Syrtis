@@ -17,17 +17,17 @@ class Habitat:
     Object to store the whole habitat geometry
 
     Args:
-        configuration (str):        either 'horizontal' or 'vertical' to specify orientation of axis
+        orientation (str):        either 'horizontal' or 'vertical' to specify orientation of axis
         length (float):             the length of the central axis of the Habitat (m)    
     """
 
-    def __init__(self, configuration, length):
-        assert configuration == "horizontal" or configuration == "vertical", "'configuration' must be either 'horizontal' or 'vertical'"
+    def __init__(self, orientation, length):
+        assert orientation == "horizontal" or orientation == "vertical", "'orientation' must be either 'horizontal' or 'vertical'"
 
         assert isinstance(length, Number), "Habitat 'length' must be a numerical value"
         assert length > 0, "Habitat 'length' must be a positive value"
 
-        self.configuration = configuration
+        self.orientation = orientation
         self.length = length
 
         self._shells = []
@@ -41,7 +41,7 @@ class Habitat:
         Create a StaticShell that conforms around the outside of the outermost one
         """
         
-        new_shell = StaticShell(self.configuration, material, self.radius_outer, thickness, self.length, False, thermal_resistance)
+        new_shell = StaticShell(self.orientation, material, self.radius_outer, thickness, self.length, False, thermal_resistance)
 
         self.radius_outer += thickness
         self.verified = False

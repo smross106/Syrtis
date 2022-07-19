@@ -27,7 +27,7 @@ class StaticShell(Shell):
     This can be a solid material (eg a layer of insulation or structural hull) or a layer of gas without forced flow.
 
     Args:
-        configuration (str):        either 'horizontal' or 'vertical' to specify orientation of axis
+        orientation (str):        either 'horizontal' or 'vertical' to specify orientation of axis
         material (syrtis.Material): the material of the Shell
         radius_inner (float):       the internal radius of the Shell (m)
         thickness (float):          the thickness of the Shell (m)
@@ -36,9 +36,9 @@ class StaticShell(Shell):
         thermal_resistance (float): an override for simple calculation of the Shell's thermal resistance. Ignored when not a positive number
     """
 
-    def __init__(self, configuration, material, radius_inner, thickness, length, external=False, thermal_resistance=0):
+    def __init__(self, orientation, material, radius_inner, thickness, length, external=False, thermal_resistance=0):
 
-        assert configuration == "horizontal" or configuration == "vertical", "'configuration' must be either 'horizontal' or 'vertical'"
+        assert orientation == "horizontal" or orientation == "vertical", "'orientation' must be either 'horizontal' or 'vertical'"
 
         assert type(material) in material_classes, "'material' input is not valid Material-inherited object"
 
@@ -50,7 +50,7 @@ class StaticShell(Shell):
 
         assert isinstance(length, Number), "Shell 'length' must be a numerical value"
 
-        self.configuration = configuration
+        self.orientation = orientation
         self.material = material
 
         self.radius_inner = radius_inner
@@ -138,7 +138,7 @@ class StaticShell(Shell):
         """
         Ra = self.material.Ra(T_avg, T_delta, p, g, self.thickness)
 
-        if self.configuration == "horizontal":
+        if self.orientation == "horizontal":
             # Using equation 9-56 from Reference [2] (via Raithby and Hollands, 1975)
 
             F_cyl = np.power(np.log(self.radius_outer/self.radius_inner), 4) / (
@@ -153,7 +153,7 @@ class StaticShell(Shell):
             else:
                 k_eq = 1
             
-        elif self.configuration == "vertical":
+        elif self.orientation == "vertical":
             # Using equation 9-52 to 9-53 from Reference [2] from Berkovsky and Polevikov, 1977
             ratio = self.length / self.thickness
 
