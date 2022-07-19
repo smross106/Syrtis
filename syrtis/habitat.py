@@ -1,12 +1,15 @@
 """
 Top-level object and tools for the whole Habitat, composed of individual Shells
 """
+from tkinter import FALSE
+
+
 if __name__ == "__main__":
     from shell import *
-    from material import *
+    #from material import *
 else:
     from syrtis.shell import *
-    from syrtis.material import *
+    #from syrtis.material import *
 
 class Habitat:
     """
@@ -29,16 +32,18 @@ class Habitat:
         self._shells = []
 
         self.radius_outer = 0
+
+        self.verified = False
     
     def create_static_shell(self, material, thickness, thermal_resistance=0):
         """
         Create a StaticShell that conforms around the outside of the outermost one
         """
-        self._shells[-1].external = False
+        
+        new_shell = StaticShell(self.configuration, material, self.radius_outer, thickness, self.length, False, thermal_resistance)
+
         self.radius_outer += thickness
-
-        new_shell = StaticShell(self.configuration, material, self.radius_outer, thickness, self.length, True, thermal_resistance)
-
+        self.verified = False
         self._shells.append(new_shell)
     
     def append_shell(self, shell):
@@ -46,20 +51,71 @@ class Habitat:
         Append a Shell of any type to the Habitat, checking for no overlaps
         """
 
-        assert shell.radius_inner >= self.radius_outer, "Shell intersects with existing Shells"
-
-        self._shells[-1].external = False
-
-        if shell.radius_inner > self.radius_outer:
-            print("Gap exists between inserted Shell and existing Shells. Filling gap with ambient Martian air")
-
-            ambient_gap = StaticShell(self.configuration, ambient_atmosphere, self.radius_outer, 
-            shell.radius_inner-self.radius_outer, self.length)
-            self._shells.append(ambient_gap)
+        self.verified = False
         
         self._shells.append(shell)
 
-        self.radius_outer = shell.radius_outer
+        self.radius_outer = max(self.radius_outer, shell.radius_outer)
+    
+    def verify_geometry(self):
+        """
+        Checks the geometry of the habitat for errors
+        """
+        
+        self._shells.sort()
+
+        assert len(self._shells) >= 2, "Habitat requires at least two Shells, one enclosing the other"
+        
+        # Do any of the layers overlap, or do they have any gaps?
+        
+        overlap_error = False
+        gap_error = False
+        for shell_count, shell in enumerate(self._shells):
+
+            if shell_count != 0:
+                # Check the shell inside this one to ensure a snug fit
+
+                if round(self._shells[shell_count - 1].radius_outer, 8) > round(shell.radius_inner, 8):
+                    # The Shell overlaps the inner edge of the current one
+                    overlap_error = True
+                    break
+
+                if round(self._shells[shell_count - 1].radius_outer, 8) < round(shell.radius_inner, 8):
+                    # The Shell overlaps the inner edge of the current one
+                    gap_error = True
+                    break
+            
+            else:
+                assert round(shell.radius_inner, 8) == 0, "There is no Shell at the centre of the Habitat. It must be present for a full calculation. Use a ConstrainedIdealGas Shell to simulate the pressurised space."
+                    
+                
+            """for i in self._shells[shell_count+1:]:
+                
+                # All shells after the current one. This reduces compute time
+                if round(i.radius_outer, 8) > inner and round(i.radius_inner, 8) < inner:
+                    # The Shell overlaps the inner edge of the current one
+                    overlap_error = True
+                    break
+                
+                elif round(i.radius_inner, 8) < outer and round(i.radius_inner, 8) < outer:
+                    # The Shell overlaps the outer edge of the current one
+                    overlap_error = True
+                    break"""
+        
+        assert not overlap_error, "Some Shells overlap each other"
+        assert not gap_error, "Some Shells have gaps betweem them"
+        
+
+        # Is the outermost layer a solid and set to external?
+
+        assert type(self._shells[-1].material) == Solid, "Outermost shell must be a Solid"
+
+        for shell in self._shells:
+            shell.external = False
+
+        self._shells[-1].external = True
+
+        self.verified = True
     
     def build_thermal_resistances(self, shell_temperatures, g):
         """
@@ -76,10 +132,28 @@ class Habitat:
 
 
 
-steel = Solid(150, 8700, 500)
-co2 = ConstrainedIdealGas(210, 580, 0.71, 10.9e-6, 749, 8.74e-3, 0.0143)
 
-starship = Habitat("vertical", 70)
-starship.create_static_shell(co2, 4.5)
-starship.create_static_shell(steel, 0.001)
+
+if __name__ == "__main__":
+    steel = Solid("Steel", 150, 8700, 500)
+    co2 = ConstrainedIdealGas("STP CO2", 44, 0.71, 10.9e-6, 749, 0.0153, p=101325)
+
+    steel_a = StaticShell("vertical", steel, 1, 0.1, 5)
+    steel_b = StaticShell("vertical", steel, 1.1, 0.1, 5)
+    steel_c = StaticShell("vertical", steel, 1.2, 0.1, 5)
+    steel_d = StaticShell("vertical", steel, 1.3, 0.1, 5)
+
+
+    starship = Habitat("vertical", 70)
+    starship.create_static_shell(co2, 1)
+
+    #starship.create_static_shell(steel, 0.001)
+    starship.append_shell(steel_a)
+    starship.append_shell(steel_c)
+    starship.append_shell(steel_b)
+    starship.create_static_shell(co2, 0.1)
+
+    print(starship._shells)
+    starship.verify_geometry()
+    print(starship._shells)
 

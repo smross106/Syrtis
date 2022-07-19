@@ -18,11 +18,12 @@ class Solid(Material):
         cp (float):     Specific heat capacity (kJ/kg/K)
 
     """
-    def __init__(self, k, rho, cp):
+    def __init__(self, name, k, rho, cp):
         assert isinstance(k, Number) and k > 0,   "Material 'k' must be a positive numerical value"
         assert isinstance(rho, Number) and rho > 0,   "Material 'rho' must be a positive numerical value"
         assert isinstance(cp, Number) and cp > 0, "Material 'cp' must be a positive numerical value"
 
+        self.name = name
         self.k = k
         self.rho = rho
         self.cp = cp
@@ -43,7 +44,7 @@ class ConstrainedIdealGas(Material):
         T (float):      Temperature (K) - optional, used as constant temperature if filled
         beta (float):   Thermal expansion coefficient (1/K) - optional, set to 1/T if left blank
     """
-    def __init__(self, M, Pr, mu, cp, k, T=0, p=0, beta=0):
+    def __init__(self, name, M, Pr, mu, cp, k, T=0, p=0, beta=0):
         assert isinstance(M, Number) and M > 0,     "Material 'M' must be a positive numerical value"
         assert isinstance(Pr, Number) and Pr > 0,   "Material 'Pr' must be a positive numerical value"
         assert isinstance(mu, Number) and mu > 0,   "Material 'mu' must be a positive numerical value"
@@ -59,6 +60,7 @@ class ConstrainedIdealGas(Material):
         if p != 0:
             assert isinstance(p, Number) and p > 0,   "Material 'p' must be a positive numerical value"
 
+        self.name = name
         self._M = M
         self._Pr = Pr
         self._mu = mu
@@ -160,4 +162,4 @@ class ConstrainedIdealGas(Material):
 
 material_classes = [Solid, ConstrainedIdealGas]
 
-ambient_atmosphere = ConstrainedIdealGas(44, 0.71, 10.9e-6, 749, 0.0153, T=210, p=580)
+ambient_atmosphere = ConstrainedIdealGas("Martian ambient CO2", 44, 0.71, 10.9e-6, 749, 0.0153, T=210, p=580)

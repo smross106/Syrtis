@@ -9,8 +9,8 @@ References:
 
 """
 
-if __name__ == "__main__":
-    from material import *
+
+from material import *
 
 
 
@@ -43,7 +43,7 @@ class StaticShell(Shell):
         assert type(material) in material_classes, "'material' input is not valid Material-inherited object"
 
         assert isinstance(radius_inner, Number), "Shell 'internal_radius' must be a numerical value"
-        assert radius_inner > 0, "Shell 'internal_radius' must be a positive value"
+        assert radius_inner >= 0, "Shell 'internal_radius' must be a positive value"
 
         assert isinstance(thickness, Number), "Shell 'thickness' must be a numerical value"
         assert thickness > 0, "Shell 'thickness' must be a positive value"
@@ -68,7 +68,39 @@ class StaticShell(Shell):
             self.calculate_thermal_resistance = False
             self.thermal_resistance = thermal_resistance
         
+    def __le__(self, other):
+        if type(other) != StaticShell: raise TypeError
 
+        return (self.radius_inner <= other.radius_inner)
+    
+    def __lt__(self, other):
+        if type(other) != StaticShell: raise TypeError
+
+        return (self.radius_inner < other.radius_inner)
+    
+    def __ge__(self, other):
+        if type(other) != StaticShell: raise TypeError
+
+        return (self.radius_inner >= other.radius_inner)
+    
+    def __gt__(self, other):
+        if type(other) != StaticShell: raise TypeError
+
+        return (self.radius_inner > other.radius_inner)
+    
+    def __eq__(self, other):
+        if type(other) != StaticShell: raise TypeError
+
+        return (self.radius_inner == other.radius_inner and self.radius_outer == other.radius_outer)
+
+    def __ne__(self, other):
+        if type(other) != StaticShell: raise TypeError
+
+        return (self.radius_inner != other.radius_inner and self.radius_outer != other.radius_outer)
+
+    def __repr__(self):
+        return("A shell of {}, with an inner radius of {:.2f} and thickness of {:.3f} \n".format(
+            self.material.name, self.radius_inner, self.thickness))
 
     def thermal_resistance(self, T_avg, T_delta, p, g):
         """
@@ -85,7 +117,7 @@ class StaticShell(Shell):
             self.thermal_resistance = self.thermal_resistance_solid()
         
         elif type(self.material) == ConstrainedIdealGas:
-            self.thermal_resistance = self.thermal_resistance_wide_annulus(T_avg, T_delta, p, g)
+            self.thermal_resistance = self.thermal_resistance_annulus(T_avg, T_delta, p, g)
             
 
     def thermal_resistance_solid(self):
@@ -94,7 +126,16 @@ class StaticShell(Shell):
 
         return(R_th)
 
-    def thermal_resistance_wide_annulus(self, T_avg, T_delta, p, g):
+    def thermal_resistance_annulus(self, T_avg, T_delta, p, g):
+        """
+        Find the thermal resistance across a gas-filled annulus using natural convection correlations
+        
+        Args:
+            T_avg (float):      Average temperature in the annulus (K)
+            T_delta (float):    Temperature difference across the annulus (K)
+            p (float):          Pressure in the annulus (Pa)
+            g (float)           Gravitational acceleration (m/s2)
+        """
         Ra = self.material.Ra(T_avg, T_delta, p, g, self.thickness)
 
         if self.configuration == "horizontal":
@@ -142,7 +183,6 @@ class StaticShell(Shell):
         R_th = np.log(self.radius_outer / self.radius_inner) / (2 * np.pi * self.material.k * k_eq * self.length)
 
         return(R_th)
-
 
 if __name__ == "__main__":
     co2 = ConstrainedIdealGas(44, 0.71, 10.9e-6, 749, 0.0153, p=580)
