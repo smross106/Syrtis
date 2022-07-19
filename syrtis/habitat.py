@@ -3,13 +3,15 @@ Top-level object and tools for the whole Habitat, composed of individual Shells
 """
 
 import numpy as np
+from numbers import Number
 
 
 if __name__ == "__main__":
     from shell import *
     #from material import *
 else:
-    from syrtis.shell import *
+    from shell import *
+    #from syrtis.shell import *
     #from syrtis.material import *
 
 class Habitat:
@@ -41,7 +43,8 @@ class Habitat:
         Create a StaticShell that conforms around the outside of the outermost one
         """
         
-        new_shell = StaticShell(self.orientation, material, self.radius_outer, thickness, self.length, False, thermal_resistance)
+        new_shell = StaticShell(self.orientation, material, self.radius_outer, 
+        thickness, self.length, False, thermal_resistance)
 
         self.radius_outer += thickness
         self.verified = False
@@ -88,20 +91,6 @@ class Habitat:
             
             else:
                 assert round(shell.radius_inner, 8) == 0, "There is no Shell at the centre of the Habitat. It must be present for a full calculation. Use a ConstrainedIdealGas Shell to simulate the pressurised space."
-                    
-                
-            """for i in self._shells[shell_count+1:]:
-                
-                # All shells after the current one. This reduces compute time
-                if round(i.radius_outer, 8) > inner and round(i.radius_inner, 8) < inner:
-                    # The Shell overlaps the inner edge of the current one
-                    overlap_error = True
-                    break
-                
-                elif round(i.radius_inner, 8) < outer and round(i.radius_inner, 8) < outer:
-                    # The Shell overlaps the outer edge of the current one
-                    overlap_error = True
-                    break"""
         
         assert not overlap_error, "Some Shells overlap each other"
         assert not gap_error, "Some Shells have gaps betweem them"
@@ -118,7 +107,7 @@ class Habitat:
 
         self.verified = True
     
-    def build_thermal_resistances(self, shell_temperatures, shell_pressures, g):
+    def build_thermal_resistances(self, shell_temperatures, g):
         """
         Outputs the thermal resistances of each shell layer
         
@@ -126,49 +115,38 @@ class Habitat:
             shell_temperatures (list of floats):    list of len(self._shells)+1, referring to temperatures at the boundary
                                                     of each material. 0th is the inner wall temperature of innermost shell,
                                                     1st is outer wall of innermost/inner wall of second.
-            shell_pressures (list of floats):       list of len(self._shells), referring to pressures in each shell
             g (float):                              gravity
         """
         assert len(shell_temperatures) == len(self._shells)+1, "length of 'shell_temperatures' must be equal to number of Shells plus one"
-        assert len(shell_pressures) == len(self._shells), "length of 'shell_pressures' must be equal to number of Shells"
 
         shell_thermal_resistances = np.zeros((len(self._shells)))
 
         for shell_count, shell in enumerate(self._shells):
             T_avg = (shell_temperatures[shell_count] + shell_temperatures[shell_count+1]) / 2
             T_delta = shell_temperatures[shell_count+1] - shell_temperatures[shell_count]
-            pressure = shell_pressures[shell_count]
 
-            shell_thermal_resistances[shell_count] = shell.thermal_resistance(T_avg, T_delta, p, g)
+            shell.calculate_thermal_resistance(T_avg, T_delta, g)
+
+            shell_thermal_resistances[shell_count] = shell.thermal_resistance
         
-        return(shell_temperatures)
+        return(shell_thermal_resistances)
+
+    def placeholder_convective_loss(self, T_wall, T_air):
+        """
+        Placeholder constant-h model for testing purposes
+        """
+        h = 1
+        A = 2 * np.pi * self.length * self.radius_outer
+
+        R_th = 1 / (h * A)
+
+        Q = (T_wall - T_air) / R_th
+        
+        return(Q)
 
 
 
 
 
 
-
-
-if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500)
-    co2 = ConstrainedIdealGas("STP CO2", 44, 0.71, 10.9e-6, 749, 0.0153, p=101325)
-
-    steel_a = StaticShell("vertical", steel, 1, 0.1, 5)
-    steel_b = StaticShell("vertical", steel, 1.1, 0.1, 5)
-    steel_c = StaticShell("vertical", steel, 1.2, 0.1, 5)
-    steel_d = StaticShell("vertical", steel, 1.3, 0.1, 5)
-
-
-    starship = Habitat("vertical", 70)
-    starship.create_static_shell(co2, 1)
-
-    #starship.create_static_shell(steel, 0.001)
-    starship.append_shell(steel_a)
-    starship.append_shell(steel_c)
-    starship.append_shell(steel_b)
-
-    print(starship._shells)
-    starship.verify_geometry()
-    print(starship._shells)
 

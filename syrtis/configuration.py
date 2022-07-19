@@ -53,3 +53,6 @@ class Configuration:
 
         self.Q_habitat = Q_habitat
         self.T_habitat = T_habitat
+
+        self.GRAVITY = 3.71
+        # Assume we're only using Mars for now

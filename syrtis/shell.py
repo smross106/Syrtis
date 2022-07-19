@@ -62,10 +62,10 @@ class StaticShell(Shell):
         self.external = external
 
         if thermal_resistance == 0:
-            self.calculate_thermal_resistance = True
+            self.thermal_resistance_constant = False
             self.thermal_resistance = -1
         else:
-            self.calculate_thermal_resistance = False
+            self.thermal_resistance_constant = True
             self.thermal_resistance = thermal_resistance
         
     def __le__(self, other):
@@ -102,12 +102,12 @@ class StaticShell(Shell):
         return("A shell of {}, with an inner radius of {:.2f} and thickness of {:.3f} \n".format(
             self.material.name, self.radius_inner, self.thickness))
 
-    def thermal_resistance(self, T_avg, T_delta, p, g):
+    def calculate_thermal_resistance(self, T_avg, T_delta, g):
         """
         Calculates the thermal resistance of the Shell
         Determines which equation to use and uses it
         """
-        if self.calculate_thermal_resistance == False:
+        if self.thermal_resistance_constant == True:
             pass
             
         elif self.radius_inner == 0:
@@ -117,7 +117,7 @@ class StaticShell(Shell):
             self.thermal_resistance = self.thermal_resistance_solid()
         
         elif type(self.material) == ConstrainedIdealGas:
-            self.thermal_resistance = self.thermal_resistance_annulus(T_avg, T_delta, p, g)
+            self.thermal_resistance = self.thermal_resistance_annulus(T_avg, T_delta, g)
             
 
     def thermal_resistance_solid(self):
@@ -126,7 +126,7 @@ class StaticShell(Shell):
 
         return(R_th)
 
-    def thermal_resistance_annulus(self, T_avg, T_delta, p, g):
+    def thermal_resistance_annulus(self, T_avg, T_delta, g):
         """
         Find the thermal resistance across a gas-filled annulus using natural convection correlations
         
@@ -136,7 +136,9 @@ class StaticShell(Shell):
             p (float):          Pressure in the annulus (Pa)
             g (float)           Gravitational acceleration (m/s2)
         """
-        Ra = self.material.Ra(T_avg, T_delta, p, g, self.thickness)
+        Ra = self.material.Ra(T_avg, T_delta, g, self.thickness)
+        Pr = self.material._Pr
+        k = self.material._k
 
         if self.orientation == "horizontal":
             # Using equation 9-56 from Reference [2] (via Raithby and Hollands, 1975)
@@ -147,7 +149,7 @@ class StaticShell(Shell):
             # Shape factor of the cylinders
 
             if F_cyl * Ra > 100:
-                k_eq = (0.386 * np.power(self.material.Pr / (0.861 + self.material.Pr), 0.25) 
+                k_eq = (0.386 * np.power(Pr / (0.861 + Pr), 0.25) 
                 * np.power(F_cyl * Ra, 0.25))
                 k_eq = max(k_eq, 1)
             else:
@@ -158,37 +160,40 @@ class StaticShell(Shell):
             ratio = self.length / self.thickness
 
             if 1 <= ratio and 2 < ratio:
-                k_eq = 0.18 * np.power((self.material.Pr * Ra) / (0.2 + self.material.Pr), 0.29)
+                k_eq = 0.18 * np.power((Pr * Ra) / (0.2 + Pr), 0.29)
 
                 # Ensure model is working in the correct regime
-                if (Ra * self.material.Pr) / (0.2 * self.material.Pr) < 1e3 and k_eq > 1:
+                if (Ra * Pr) / (0.2 * Pr) < 1e3 and k_eq > 1:
                     print("Warning: heat transfer in vertical enclosure correlation is out of validation range. Proceed with caution")
                  
             elif 2 <= ratio < 10:
-                k_eq = 0.22 * np.power((self.material.Pr * Ra) / (0.2 + self.material.Pr), 0.28) * np.power(ratio, -0.25)
+                k_eq = 0.22 * np.power((Pr * Ra) / (0.2 + Pr), 0.28) * np.power(ratio, -0.25)
 
                 # Ensure model is working in the correct regime
                 if Ra > 1e10 and k_eq > 1:
                     print("Warning: heat transfer in vertical enclosure correlation is out of validation range. Proceed with caution")
                 
             elif 10 <= ratio:
-                k_eq = 0.22 * np.power((self.material.Pr * Ra) / (0.2 + self.material.Pr), 0.28) * np.power(ratio, -0.25)
+                k_eq = 0.22 * np.power((Pr * Ra) / (0.2 + Pr), 0.28) * np.power(ratio, -0.25)
 
                 if k_eq > 1:
                     print("Warning: heat transfer in vertical enclosure correlation is out of validation range. Proceed with caution")
             
+            else:
+                k_eq = 1
+            
             if k_eq < 1:
                 k_eq = 1
 
-        R_th = np.log(self.radius_outer / self.radius_inner) / (2 * np.pi * self.material.k * k_eq * self.length)
+        R_th = np.log(self.radius_outer / self.radius_inner) / (2 * np.pi * k * k_eq * self.length)
 
         return(R_th)
 
 if __name__ == "__main__":
-    co2 = ConstrainedIdealGas(44, 0.71, 10.9e-6, 749, 0.0153, p=580)
-    steel = Solid(150, 8700, 500)
+    co2 = ConstrainedIdealGas("co2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
+    steel = Solid("steel", 150, 8700, 500)
 
     s = StaticShell("horizontal", co2, 1, 0.2, 1)
-    s.thermal_resistance(10, 9.81)
+    s.calculate_thermal_resistance(250, 10, 9.81)
 
     print(s.thermal_resistance)
