@@ -1,7 +1,8 @@
 """
 Top-level object and tools for the whole Habitat, composed of individual Shells
 """
-from tkinter import FALSE
+
+import numpy as np
 
 
 if __name__ == "__main__":
@@ -117,7 +118,7 @@ class Habitat:
 
         self.verified = True
     
-    def build_thermal_resistances(self, shell_temperatures, g):
+    def build_thermal_resistances(self, shell_temperatures, shell_pressures, g):
         """
         Outputs the thermal resistances of each shell layer
         
@@ -125,9 +126,24 @@ class Habitat:
             shell_temperatures (list of floats):    list of len(self._shells)+1, referring to temperatures at the boundary
                                                     of each material. 0th is the inner wall temperature of innermost shell,
                                                     1st is outer wall of innermost/inner wall of second.
+            shell_pressures (list of floats):       list of len(self._shells), referring to pressures in each shell
             g (float):                              gravity
         """
-        assert len(shell_temperatures) == len(self._shells)+1, "'shell_temperatures' must be equal to number of Shells plus one"
+        assert len(shell_temperatures) == len(self._shells)+1, "length of 'shell_temperatures' must be equal to number of Shells plus one"
+        assert len(shell_pressures) == len(self._shells), "length of 'shell_pressures' must be equal to number of Shells"
+
+        shell_thermal_resistances = np.zeros((len(self._shells)))
+
+        for shell_count, shell in enumerate(self._shells):
+            T_avg = (shell_temperatures[shell_count] + shell_temperatures[shell_count+1]) / 2
+            T_delta = shell_temperatures[shell_count+1] - shell_temperatures[shell_count]
+            pressure = shell_pressures[shell_count]
+
+            shell_thermal_resistances[shell_count] = shell.thermal_resistance(T_avg, T_delta, p, g)
+        
+        return(shell_temperatures)
+
+
 
 
 
@@ -151,7 +167,6 @@ if __name__ == "__main__":
     starship.append_shell(steel_a)
     starship.append_shell(steel_c)
     starship.append_shell(steel_b)
-    starship.create_static_shell(co2, 0.1)
 
     print(starship._shells)
     starship.verify_geometry()
