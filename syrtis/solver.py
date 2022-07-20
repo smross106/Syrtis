@@ -90,7 +90,11 @@ class Solver:
     
     def solve_wall_loss(self, wall_temperature):
 
-        Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
+        #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
+        Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
+                                                            self.configuration.v_air,
+                                                            self.configuration.T_air,
+                                                            wall_temperature)
 
         return(Q_wall)
     
@@ -106,13 +110,13 @@ if __name__ == "__main__":
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
     equator = Configuration("equator", "constant temperature",
-        210, 0.1, 210, 1, "cross", 90, 90, 580, T_habitat=190)
+        210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=190)
 
     bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 300, 5, "cross", 90, 90, 604, T_habitat=80)
+    300, 1, 300, 101325, 1, "cross", 90, 90, 604, T_habitat=80)
     
     heat_gain = []
-    thicknesses = np.logspace(-3, -0.5, 100)
+    thicknesses = np.logspace(-3, 0, 100)
     #thicknesses = np.linspace(0.001, 1.001, 500)
 
     for thickness in thicknesses:
@@ -122,7 +126,7 @@ if __name__ == "__main__":
         tankfarm.create_static_shell(co2, thickness)
         tankfarm.create_static_shell(steel, 0.001)
 
-        
+        tankfarm.verify_geometry()
 
         s = Solver("test", tankfarm, bocachica)
         q = s.iterate_constant_temperature()

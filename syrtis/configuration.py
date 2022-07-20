@@ -2,12 +2,14 @@
 Stores the Configuration for a given simulation: habitat heat loading and external environment
 """
 
+from material import *
+
 solution_types = ["constant power", "constant temperature"]
 air_directions = ["axial", "cross"]
 
 class Configuration:
     def __init__(self, name, solution_type,
-    T_ground, k_ground, T_air, air_speed, air_direction, solar_altitude, solar_azimuth, solar_intensity,
+    T_ground, k_ground, T_air, p_air, v_air, air_direction, solar_altitude, solar_azimuth, solar_intensity,
     Q_habitat=0, T_habitat=0):
         """
         An object to store the Configuration for a given simulation
@@ -20,7 +22,8 @@ class Configuration:
             k_ground (float):       soil thermal conductivity (W/m/K)
             
             T_air (float):          air temperature (K)
-            air_speed (float):      speed of the air (m/s)
+            p_air (float):          air pressure (Pa)
+            v_air (float):          speed of the air (m/s)
             air_direction (float):  direction of the air, either "axial" for along a horizontal cyclinder or "cross" for crossflow
 
             solar_altitude (float): vertical angle of the sun above the horizon (degrees)
@@ -44,7 +47,8 @@ class Configuration:
         self.k_ground = k_ground
 
         self.T_air = T_air
-        self.air_speed = air_speed
+        self.p_air = p_air
+        self.v_air = v_air
         self.air_direction = air_direction
 
         self.solar_altitude = solar_altitude
@@ -56,3 +60,5 @@ class Configuration:
 
         self.GRAVITY = 3.71
         # Assume we're only using Mars for now
+
+        self.air = ConstrainedIdealGas("Surface air", self.p_air, 44, 0.71, 10.9e-6, 749, 0.0153)

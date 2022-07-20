@@ -137,8 +137,8 @@ class StaticShell(Shell):
             g (float)           Gravitational acceleration (m/s2)
         """
         Ra = self.material.Ra(T_avg, T_delta, g, self.thickness)
-        Pr = self.material._Pr
-        k = self.material._k
+        Pr = self.material.Pr(T_avg)
+        k = self.material.k(T_avg)
 
         if self.orientation == "horizontal":
             # Using equation 9-56 from Reference [2] (via Raithby and Hollands, 1975)

@@ -115,6 +115,71 @@ class ConstrainedIdealGas(Material):
 
         return(beta)
 
+    def mu(self, T):
+        """
+        Dynamic viscosity
+
+        Args:
+            T (float):  Temperature (K) 
+        """
+
+        if self.input_T == False:
+            T = self._T
+        else:
+            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+
+        return(self._mu)
+
+    def Pr(self, T):
+        """
+        Prandtl number
+
+        Args:
+            T (float):  Temperature (K) 
+        """
+
+        if self.input_T == False:
+            T = self._T
+        else:
+            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+
+        return(self._Pr)
+    
+    def k(self, T):
+        """
+        Thermal conductivity
+
+        Args:
+            T (float):  Temperature (K) 
+        """
+
+        if self.input_T == False:
+            T = self._T
+        else:
+            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+
+        return(self._k)
+    
+    def Re(self, T, L, v):
+        """
+        Dynamic viscosity
+
+        Args:
+            T (float):  Temperature (K) 
+        """
+
+        if self.input_T == False:
+            T = self._T
+        else:
+            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+        
+        assert isinstance(L, Number) and L > 0,   "Input 'L' must be a positive numerical value"
+        assert isinstance(v, Number) and v > 0,   "Input 'v' must be a positive numerical value"
+
+        Re = self.rho(T) * v * L / self.mu(T)
+
+        return(Re)
+
     def Ra(self, T_avg, T_delta, g, length):
         """
         Calculate the Rayleigh number, using constant fluid properties
@@ -133,7 +198,7 @@ class ConstrainedIdealGas(Material):
         assert isinstance(length, Number) and length > 0,   "Material 'T' must be a positive numerical value"
 
         Ra = ((g * np.power(length, 3) * self.beta(T_avg) * abs(T_delta) * np.power(self.rho(T_avg), 2)) 
-        / np.power(self._mu, 2))
+        / np.power(self.mu(T_avg), 2))
 
         assert Ra > 0, "Input has produced an invalid output"
 

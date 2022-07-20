@@ -1,5 +1,10 @@
 """
 Top-level object and tools for the whole Habitat, composed of individual Shells
+
+References:
+
+ - [1] - Y Cengel, Heat Transfer
+
 """
 
 import numpy as np
@@ -143,6 +148,33 @@ class Habitat:
         Q = (T_wall - T_air) / R_th
         
         return(Q)
+    
+    def convective_loss_cylinder_cross(self, air, v_air, T_air, T_wall):
+        """
+        Convective heat loss from a cylinder with uniform crossflow.
+
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+        """
+
+        T_film = (T_wall + T_air) / 2
+
+        D = self._shells[-1].radius_outer * 2
+
+        Re = air.Re(T_film, D, v_air)
+        Pr = air.Pr(T_film)
+
+        # Churchill-Bernstein correlation, from Reference [1] Equation (7-35)
+
+        Nu_D = 0.3 + (((0.62 * np.power(Re, 0.5) * np.power(Pr, 1/3.)) / (np.power(1 + np.power(0.4 / Pr, 2/3), 0.25))) *
+        np.power(1 + np.power(Re / 282000, 0.625), 0.8))
+
+        h = Nu_D * air.k(T_film) / D
+
+        Q = h * (2 * np.pi * D * self._shells[-1].length) * (T_wall - T_air)
+
+        return(Q)
+
 
 
 
