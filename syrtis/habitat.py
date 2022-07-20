@@ -19,6 +19,8 @@ else:
     #from syrtis.shell import *
     #from syrtis.material import *
 
+endcap_types = ["hemisphere", "flat"]
+
 class Habitat:
     """
     Object to store the whole habitat geometry
@@ -28,14 +30,18 @@ class Habitat:
         length (float):             the length of the central axis of the Habitat (m)    
     """
 
-    def __init__(self, orientation, length):
+    def __init__(self, orientation, length, endcap_type):
         assert orientation == "horizontal" or orientation == "vertical", "'orientation' must be either 'horizontal' or 'vertical'"
 
         assert isinstance(length, Number), "Habitat 'length' must be a numerical value"
         assert length > 0, "Habitat 'length' must be a positive value"
 
+        assert endcap_type in endcap_types, "'endcap_type' must be a valid keyword"
+
         self.orientation = orientation
         self.length = length
+
+        self.endcap_type = endcap_type
 
         self._shells = []
 
@@ -79,6 +85,7 @@ class Habitat:
         
         overlap_error = False
         gap_error = False
+        length_error = False
         for shell_count, shell in enumerate(self._shells):
 
             if shell_count != 0:
@@ -93,12 +100,17 @@ class Habitat:
                     # The Shell overlaps the inner edge of the current one
                     gap_error = True
                     break
+                    
+                if round(self._shells[shell_count - 1].length, 8) > round(shell.length, 8):
+                    length_error = True
+                    break
             
             else:
                 assert round(shell.radius_inner, 8) == 0, "There is no Shell at the centre of the Habitat. It must be present for a full calculation. Use a ConstrainedIdealGas Shell to simulate the pressurised space."
         
         assert not overlap_error, "Some Shells overlap each other"
         assert not gap_error, "Some Shells have gaps betweem them"
+        assert not length_error, "Some Shells become shorter, not longer, moving away from the centre of the Habitat"
         
 
         # Is the outermost layer a solid and set to external?
@@ -109,6 +121,16 @@ class Habitat:
             shell.external = False
 
         self._shells[-1].external = True
+
+        self.exposed_area_convection_cylinder = 2 * np.pi * self._shells.radius_outer * self._shells.length
+        
+        if self.orientation == "horizontal":
+            
+            if self.endcap_type == "hemisphere":
+                self.exposed_area_endcap = 4 * np.pi * np.power(self._shells.radius_outer, 2)
+            
+            elif self.endcap_type == "flat":
+                self.exposed_area_endcap = 2 * np.pi * np.power(self._shells.radius_outer, 2)
 
         self.verified = True
     
@@ -149,12 +171,34 @@ class Habitat:
         
         return(Q)
     
+    def convective_loss_endcap_cross(self, air, v_air, T_air, T_wall):
+        """
+        Convective heat loss from the endcaps with uniform crossflow
+        
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
+        """
+
+        if self.endcap_type == "hemisphere":
+            D = self._shells[-1].radius_outer * 2
+
+            # Whitaker correlation, evaluating all fluid properties at freestream temperature
+            # From Reference [2], Equation (7-36)
+            Re = air.Re(T_film, D, v_air)
+            Pr = air.Pr(T_film)
+    
     def convective_loss_cylinder_cross(self, air, v_air, T_air, T_wall):
         """
         Convective heat loss from a cylinder with uniform crossflow.
 
         Args:
             air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
         """
 
         T_film = (T_wall + T_air) / 2
