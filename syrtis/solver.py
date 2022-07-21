@@ -13,6 +13,8 @@ class Solver:
         assert type(habitat) == Habitat, "'habitat' must be a Habitat object"
         assert type(configuration) == Configuration, "'configuration' must be a Configuration object"
 
+        assert habitat.verified, "'habitat' must be verified with habitat.verify_geometry()"
+
         self.name = name
         self.habitat = habitat
         self.configuration = configuration
@@ -91,12 +93,33 @@ class Solver:
     def solve_wall_loss(self, wall_temperature):
 
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
-        Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
+        Q_wall = 0
+        Q_endcap = 0
+        
+        if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
+            self.habitat.orientation == "vertical"):
+            Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
+                                                            self.configuration.v_air,
+                                                            self.configuration.T_air,
+                                                            wall_temperature)
+            
+            Q_endcap = self.habitat.convective_loss_endcap_cross(self.configuration.air, 
+                                                            self.configuration.v_air,
+                                                            self.configuration.T_air,
+                                                            wall_temperature)
+        
+        elif (self.configuration.air_direction == "axial" and self.habitat.orientation == "horizontal"):
+            Q_wall = self.habitat.convective_loss_cylinder_axial(self.configuration.air, 
+                                                            self.configuration.v_air,
+                                                            self.configuration.T_air,
+                                                            wall_temperature)
+            
+            Q_endcap = self.habitat.convective_loss_endcap_axial(self.configuration.air, 
                                                             self.configuration.v_air,
                                                             self.configuration.T_air,
                                                             wall_temperature)
 
-        return(Q_wall)
+        return(Q_wall + Q_endcap)
     
     def generate_error(self, state1, state2):
         error = np.sum((np.ndarray(state1) - np.ndarray(state2))**2)
@@ -113,15 +136,15 @@ if __name__ == "__main__":
         210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=190)
 
     bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 300, 101325, 1, "cross", 90, 90, 604, T_habitat=80)
+    300, 1, 300, 580, 1, "cross", 90, 90, 604, T_habitat=80)
     
     heat_gain = []
     thicknesses = np.logspace(-3, 0, 100)
     #thicknesses = np.linspace(0.001, 1.001, 500)
 
     for thickness in thicknesses:
-        tankfarm = Habitat("vertical", 50)
-        tankfarm.create_static_shell(co2, 1)
+        tankfarm = Habitat("vertical", 50, "flat")
+        tankfarm.create_static_shell(co2, 4.5)
         tankfarm.create_static_shell(steel, 0.001)
         tankfarm.create_static_shell(co2, thickness)
         tankfarm.create_static_shell(steel, 0.001)

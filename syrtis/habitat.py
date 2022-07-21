@@ -7,6 +7,7 @@ References:
 
 """
 
+from gettext import translation
 import numpy as np
 from numbers import Number
 
@@ -122,15 +123,23 @@ class Habitat:
 
         self._shells[-1].external = True
 
-        self.exposed_area_convection_cylinder = 2 * np.pi * self._shells.radius_outer * self._shells.length
+        self.exposed_area_convection_cylinder = 2 * np.pi * self._shells[-1].radius_outer * self._shells[-1].length
         
         if self.orientation == "horizontal":
             
             if self.endcap_type == "hemisphere":
-                self.exposed_area_endcap = 4 * np.pi * np.power(self._shells.radius_outer, 2)
+                self.exposed_area_endcap = 4 * np.pi * np.power(self._shells[-1].radius_outer, 2)
             
             elif self.endcap_type == "flat":
-                self.exposed_area_endcap = 2 * np.pi * np.power(self._shells.radius_outer, 2)
+                self.exposed_area_endcap = 2 * np.pi * np.power(self._shells[-1].radius_outer, 2)
+        
+        elif self.orientation == "vertical":
+
+            if self.endcap_type == "hemisphere":
+                self.exposed_area_endcap = 2 * np.pi * np.power(self._shells[-1].radius_outer, 2)
+            
+            elif self.endcap_type == "flat":
+                self.exposed_area_endcap = 1 * np.pi * np.power(self._shells[-1].radius_outer, 2)
 
         self.verified = True
     
@@ -171,6 +180,70 @@ class Habitat:
         
         return(Q)
     
+    def nusselt_sphere(self, air, v_air, T_air, T_wall, D):
+        """
+        Find the Nusselt number for a sphere in uniform flow
+        Whitaker correlation, all properties evaulated at freestream temperature
+        From Reference [2], Equation (7-36)
+
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
+            D (float):                  diameter (m)
+        """
+        Re = air.Re(T_air, D, v_air)
+        Pr = air.Pr(T_air)
+        mu_air = air.mu(T_air)
+        mu_wall = air.mu(T_wall)
+
+        if 0.7 >= Pr or Pr >= 380:
+            print("Warning: heat transfer on hemispherical endcap correlation is out of validation range. Proceed with caution")
+        
+        if 3.5 >= Re or Re >= 80000:
+            print("Warning: heat transfer on hemispherical endcap correlation is out of validation range. Proceed with caution")
+
+        Nu_D = 2 + (
+            (0.4 * np.power(Re, 0.4) + 0.06 * np.power(Re, 2/3)) * np.power(Pr, 0.4) * 
+            np.power(mu_air / mu_wall, 0.25))
+        
+        return(Nu_D)
+    
+    def nusselt_plate_crossflow(self, air, v_air, T_air, T_wall, D):
+        """
+        Find the Nusselt number for crossflow over a plate
+        Does the correct checking for laminar, turbulent etc
+        
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
+            D (float):                  length scale (m)
+        """
+        transition_Re = 5e5
+
+        T_film = (T_wall + T_air) / 2
+
+        Re = air.Re(T_film, D, v_air)
+        Pr = air.Pr(T_film)
+
+        if Re < transition_Re:
+            # Laminar correlation, Reference [2] Equation (7-21)
+            Nu_D = 0.664 * np.power(Re, 0.5) * np.power(Pr, 1/3)
+        
+        elif Re > transition_Re and Re < 1e7:
+            # Use partially-laminar correlation, Reference [2] Equation (7-24)
+            Nu_D = (0.037 * np.power(Re, 0.8) - 871) * np.power(Pr, 1/3)
+        
+        else:
+            print("Warning: heat transfer on flat plate correlation is out of validation range. Proceed with caution")
+            Nu_D = (0.037 * np.power(Re, 0.8) - 871) * np.power(Pr, 1/3)
+
+
+        return(Nu_D)
+
     def convective_loss_endcap_cross(self, air, v_air, T_air, T_wall):
         """
         Convective heat loss from the endcaps with uniform crossflow
@@ -181,15 +254,55 @@ class Habitat:
             T_air (float):              temperature of the freestream (K)
             T_wall (float):             temperature of the wall (K)
         """
+        D = self._shells[-1].radius_outer * 2
 
         if self.endcap_type == "hemisphere":
-            D = self._shells[-1].radius_outer * 2
+            Nu_D = self.nusselt_sphere(air, v_air, T_air, T_wall, D)
+            
+        elif self.endcap_type == "flat":
+            Nu_D = self.nusselt_plate_crossflow(air, v_air, T_air, T_wall, D)
+            
+        h = Nu_D * air.k((T_air + T_wall) / 2) / D
 
-            # Whitaker correlation, evaluating all fluid properties at freestream temperature
-            # From Reference [2], Equation (7-36)
-            Re = air.Re(T_film, D, v_air)
-            Pr = air.Pr(T_film)
+        Q = h * self.exposed_area_endcap * (T_wall - T_air)
+
+        return(Q)
     
+    def convective_loss_endcap_axial(self, air, v_air, T_air, T_wall):
+        """
+        Convective heat loss from the endcaps with uniform crossflow
+        
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
+        """
+        D = self._shells[-1].radius_outer * 2
+
+        if self.endcap_type == "hemisphere":
+            Nu_D = self.nusselt_sphere(air, v_air, T_air, T_wall, D)
+        
+        elif self.endcap_type == "flat":
+            if self.orientation == "horizontal":
+                T_film = (T_wall + T_air) / 2
+
+                Re = air.Re(T_film, D, v_air)
+                Pr = air.Pr(T_film)
+                if 4000 >= Re or Re >= 15000:
+                    print("Warning: heat transfer on flat endcap correlation is out of validation range. Proceed with caution")
+                
+                Nu_D = 0.228 * np.power(Re, 0.731) * np.power(Re, 1/3)
+            
+            elif self.orientation == "vertical":
+                Nu_D = self.nusselt_plate_crossflow(v_air, T_air, T_wall, D)
+
+        h = Nu_D * air.k((T_air + T_wall) / 2) / D
+
+        Q = h * self.exposed_area_endcap * (T_wall - T_air)
+
+        return(Q)
+
     def convective_loss_cylinder_cross(self, air, v_air, T_air, T_wall):
         """
         Convective heat loss from a cylinder with uniform crossflow.
@@ -200,7 +313,6 @@ class Habitat:
             T_air (float):              temperature of the freestream (K)
             T_wall (float):             temperature of the wall (K)
         """
-
         T_film = (T_wall + T_air) / 2
 
         D = self._shells[-1].radius_outer * 2
@@ -215,11 +327,31 @@ class Habitat:
 
         h = Nu_D * air.k(T_film) / D
 
-        Q = h * (2 * np.pi * D * self._shells[-1].length) * (T_wall - T_air)
+        Q = h * self.exposed_area_convection_cylinder * (T_wall - T_air)
 
         return(Q)
 
+    def convective_loss_cylinder_axial(self, air, v_air, T_air, T_wall):
+        """
+        Convective heat loss from a cylinder with uniform axial flow.
 
+        Args:
+            air (ConstrainedIdealGas):  object for the external flow
+            v_air (float):              velocity of airflow (m/s)
+            T_air (float):              temperature of the freestream (K)
+            T_wall (float):             temperature of the wall (K)
+        """
+        T_film = (T_wall + T_air) / 2
+
+        L = self._shells[-1].length
+
+        Nu_D = self.nusselt_plate_crossflow(air, v_air, T_air, T_wall, L)
+
+        h = Nu_D * air.k(T_film) / L
+
+        Q = h * self.exposed_area_convection_cylinder * (T_wall - T_air)
+
+        return(Q)
 
 
 
