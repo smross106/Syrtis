@@ -24,35 +24,38 @@ class Solver:
         T_internal_start = self.configuration.T_habitat
         Q_initial_start = 1000
         
-        Q = Q_initial_start
+        Q_loss = Q_initial_start
         shell_temperatures = self.generate_initial_state(T_internal_start)
 
-        current_error = Q
+        current_error = Q_loss
 
-        cutoff_ratio = 1e-4
-        target_iterations = 200
+        cutoff_ratio = 1e-5
+        target_iterations = 250
 
         iterations = 0
 
-        while (abs(current_error/Q) > cutoff_ratio) and iterations < target_iterations:
+        while (abs(current_error/Q_loss) > cutoff_ratio) and iterations < target_iterations:
 
-            new_shell_temperatures = self.solve_habitat_conduction(shell_temperatures, Q)
+            new_shell_temperatures = self.solve_habitat_conduction(shell_temperatures, Q_loss)
 
             Q_wall = self.solve_wall_loss(new_shell_temperatures[-1])
 
-            new_error = abs(Q - Q_wall)
-            previous_error = current_error
+            #print(current_error, Q_loss, Q_wall, new_shell_temperatures[-1])
+
+            new_error = abs(Q_loss - Q_wall)
             current_error = new_error
             iterations += 1
 
-            Q = (Q_wall + Q) / 2
+            Q_loss = (Q_wall + (99 * Q_loss)) / 100
             shell_temperatures = new_shell_temperatures
+
+            
         
-        if (abs(current_error/Q) > cutoff_ratio):
-            print("Did not converge")
+        if (abs(current_error/Q_loss) > cutoff_ratio):
+            print("Did not converge " + str(abs(current_error/Q_loss)))
             return(np.nan)
         else:
-            return(Q)
+            return(Q_loss)
 
     def generate_initial_state(self, T_internal_start):
         # Assume there are (N+1) Shells, set the outermost - not attached to any physical Shell has temperature equal to outside air
@@ -83,9 +86,10 @@ class Solver:
             shell_temperature = updated_shell_temperatures[shell_count-1] - wall_resistances[shell_count-1] * Q
 
             if shell_temperature < 0:
-                shell_temperature = shell_temperatures[shell_count]
-                print("Shell temperature error")
-                break
+                #print("Shell temperature error ", str(shell_temperature))
+                shell_temperature = shell_temperatures[shell_count] / 2
+                
+                #break
 
             updated_shell_temperatures[shell_count] = shell_temperature
         
@@ -182,7 +186,7 @@ if __name__ == "__main__":
 
     columbus.create_static_shell(internal_air, 2.2)
     columbus.create_static_shell(steel, 4e-3)
-    columbus.create_static_shell(co2_ambient, 0.04)
+    columbus.create_static_shell(co2_ambient, 1)
     columbus.create_static_shell(steel, 4e-3)
 
     columbus.verify_geometry()
@@ -194,7 +198,7 @@ if __name__ == "__main__":
 
     for temp in temps:
         equator = Configuration("equator", "constant temperature",
-            210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=temp)
+            210, 0.1, 210, 580, 1, "cross", 90, 90, 605, T_habitat=temp)
     
         s = Solver("columbus equator Mars", columbus, equator)
 
