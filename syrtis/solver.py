@@ -29,8 +29,8 @@ class Solver:
 
         current_error = Q
 
-        cutoff_ratio = 1e-5
-        target_iterations = 100
+        cutoff_ratio = 1e-4
+        target_iterations = 200
 
         iterations = 0
 
@@ -70,7 +70,7 @@ class Solver:
         
         wall_resistances = self.habitat.build_thermal_resistances(shell_temperatures, self.configuration.GRAVITY)
 
-        updated_shell_temperatures = np.zeros((len(shell_temperatures)))
+        updated_shell_temperatures = shell_temperatures
 
         # For both calculation types, the interior wall temperature is considered constant in this calculation
         # The temperatures throughout the rest of the Shells are found with the thermal resistances
@@ -84,6 +84,7 @@ class Solver:
 
             if shell_temperature < 0:
                 shell_temperature = shell_temperatures[shell_count]
+                print("Shell temperature error")
                 break
 
             updated_shell_temperatures[shell_count] = shell_temperature
@@ -95,6 +96,8 @@ class Solver:
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
         Q_wall = 0
         Q_endcap = 0
+        Q_rad_sky = 0
+        Q_rad_ground = 0
         
         if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
             self.habitat.orientation == "vertical"):
@@ -118,8 +121,11 @@ class Solver:
                                                             self.configuration.v_air,
                                                             self.configuration.T_air,
                                                             wall_temperature)
+        
+        Q_rad_sky = self.habitat.radiative_loss_sky(self.configuration.T_air, wall_temperature)
+        Q_rad_ground = self.habitat.radiative_loss_ground(self.configuration.T_ground, wall_temperature)
 
-        return(Q_wall + Q_endcap)
+        return(Q_wall + Q_endcap + Q_rad_sky + Q_rad_ground)
     
     def generate_error(self, state1, state2):
         error = np.sum((np.ndarray(state1) - np.ndarray(state2))**2)
@@ -129,14 +135,14 @@ class Solver:
             
 
 """if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500)
+    steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
     equator = Configuration("equator", "constant temperature",
         210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=190)
 
     bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 300, 580, 1, "cross", 90, 90, 604, T_habitat=80)
+    300, 1, 300, 101325, 1, "cross", 90, 90, 604, T_habitat=80)
     
     heat_gain = []
     thicknesses = np.logspace(-3, 0, 100)
@@ -167,8 +173,8 @@ class Solver:
     plt.show()"""
 
 
-"""if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500)
+if __name__ == "__main__":
+    steel = Solid("Steel", 150, 8700, 500, 0.55)
     internal_air = ConstrainedIdealGas("STP CO2", 101325, 29, 0.71, 10.9e-6, 749, 0.0153)
     co2_ambient = ConstrainedIdealGas("STP CO2", 580, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -176,7 +182,7 @@ class Solver:
 
     columbus.create_static_shell(internal_air, 2.2)
     columbus.create_static_shell(steel, 4e-3)
-    columbus.create_static_shell(co2_ambient, 0.1)
+    columbus.create_static_shell(co2_ambient, 0.04)
     columbus.create_static_shell(steel, 4e-3)
 
     columbus.verify_geometry()
@@ -202,4 +208,4 @@ class Solver:
     plt.ylabel("Internal temperature (C)")
     plt.xlabel("Heat loss")
     plt.title("Syrtis evaluation case \n Heat loss from ISS Columbus on Martian surface")
-    plt.show()"""
+    plt.show()

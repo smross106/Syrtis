@@ -4,7 +4,11 @@ Top-level object and tools for the whole Habitat, composed of individual Shells
 References:
 
  - [1] - Y Cengel, Heat Transfer
-
+ - [2] - Sky temperature modelisation and applications in building simulation, Adelard et al 1998
+ - [3] - Long-wave  radiation from clear skies, Swinbank 1963
+ - [4] - Radiation View Factors, http://webserver.dmt.upm.es/~isidoro/tc3/Radiation%20View%20factors.pdf
+ - [5] - Thermal control of MSL Rover "Curiosity" using an Active Fluid Loop, Birur 2013
+ - [6] - The thermal control system of NASA’s Curiosity rover: a case study, Quattrocchi et al, 2022 
 """
 
 from gettext import translation
@@ -123,7 +127,7 @@ class Habitat:
 
         self._shells[-1].external = True
 
-        self.exposed_area_convection_cylinder = 2 * np.pi * self._shells[-1].radius_outer * self._shells[-1].length
+        self.exposed_area_cylinder = 2 * np.pi * self._shells[-1].radius_outer * self._shells[-1].length
         
         if self.orientation == "horizontal":
             
@@ -264,9 +268,9 @@ class Habitat:
             
         h = Nu_D * air.k((T_air + T_wall) / 2) / D
 
-        Q = h * self.exposed_area_endcap * (T_wall - T_air)
+        Q_conv = h * self.exposed_area_endcap * (T_wall - T_air)
 
-        return(Q)
+        return(Q_conv)
     
     def convective_loss_endcap_axial(self, air, v_air, T_air, T_wall):
         """
@@ -299,9 +303,9 @@ class Habitat:
 
         h = Nu_D * air.k((T_air + T_wall) / 2) / D
 
-        Q = h * self.exposed_area_endcap * (T_wall - T_air)
+        Q_conv = h * self.exposed_area_endcap * (T_wall - T_air)
 
-        return(Q)
+        return(Q_conv)
 
     def convective_loss_cylinder_cross(self, air, v_air, T_air, T_wall):
         """
@@ -327,7 +331,7 @@ class Habitat:
 
         h = Nu_D * air.k(T_film) / D
 
-        Q = h * self.exposed_area_convection_cylinder * (T_wall - T_air)
+        Q = h * self.exposed_area_cylinder * (T_wall - T_air)
 
         return(Q)
 
@@ -349,12 +353,84 @@ class Habitat:
 
         h = Nu_D * air.k(T_film) / L
 
-        Q = h * self.exposed_area_convection_cylinder * (T_wall - T_air)
+        Q_conv = h * self.exposed_area_cylinder * (T_wall - T_air)
 
-        return(Q)
+        return(Q_conv)
+    
+    def sky_temperature(self, T_air):
+        """
+        Calculate the sky temperature for radiative heat transfer
+        Uses equation from References [2] and [3], validated against data from Reference [5]
 
+        Args: 
+            T_air:      air temperature (K)
+        """
 
+        T_sky = 0.0552 * np.power(T_air, 1.5)
 
+        return(T_sky)
+
+    def view_factor_ground(self):
+        """
+        Calculate the view factor to the ground from the cylinder
+        Uses equations from Reference [4]
+        """
+
+        if self.orientation == "vertical":
+            vf_cylinder = 0.5
+
+            vf_endcap = 0.5
+
+            vf = ((vf_cylinder * self.exposed_area_cylinder) +
+            (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
+
+        elif self.orientation == "horizontal":
+
+            vf_cylinder_top = 0.5 - (1 / np.pi)
+            vf_cylinder_bottom = 0.5 + (1 / np.pi)
+
+            vf_endcap = 0.5
+
+            vf = ((vf_cylinder_top * 0.5 * self.exposed_area_cylinder) + 
+            (vf_cylinder_bottom * 0.5 * self.exposed_area_cylinder) +
+            (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
+        
+        return(vf)
+
+    def radiative_loss_sky(self, T_air, T_wall):
+        """
+        Calculate radiative loss to the sky.
+
+        Args:
+            T_air (float):              temperature of the ambient surrounding air (K)
+            T_wall (float):             temperature of the wall (K)
+        """
+
+        T_sky = self.sky_temperature(T_air)
+        
+        vf_sky = 1 - self.view_factor_ground()
+
+        Q_sky = 5.67e-8 * self._shells[-1].material.emit * (np.power(T_wall, 4) - np.power(T_sky, 4)) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
+
+        return(Q_sky)
+    
+    def radiative_loss_ground(self, T_ground, T_wall):
+        """
+        Calculate radiative loss to the sky.
+
+        Args:
+            T_ground (float):              temperature of the ground(K)
+            T_wall (float):             temperature of the wall (K)
+        """
+
+        vf_ground = 1 - self.view_factor_ground()
+
+        Q_ground = 5.67e-8 * self._shells[-1].material.emit * (np.power(T_wall, 4) - np.power(T_ground, 4)) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
+
+        return(Q_ground)
+    
 
 
 

@@ -13,20 +13,33 @@ class Solid(Material):
     Object for a homogenous solid Shell
 
     Args:
-        k (float):      Thermal conductivity (W/m/K)
-        rho (float):    Density (kg/m3)
-        cp (float):     Specific heat capacity (kJ/kg/K)
-
+        name (str):         Name of the material
+        k (float):          Thermal conductivity (W/m/K)
+        rho (float):        Density (kg/m3)
+        cp (float):         Specific heat capacity (kJ/kg/K)
+        absorb (float):     Absorptivity, between 0 and 1
+        emit (float):       Emissivity, between 0 and 1. Optional, defaults equal to absorbivity
+        transmit (float):   Transmissivity, between 0 and 1, Optional, defaults to zero
     """
-    def __init__(self, name, k, rho, cp):
+    def __init__(self, name, k, rho, cp, absorb, emit=-1,  transmit=0):
         assert isinstance(k, Number) and k > 0,   "Material 'k' must be a positive numerical value"
         assert isinstance(rho, Number) and rho > 0,   "Material 'rho' must be a positive numerical value"
         assert isinstance(cp, Number) and cp > 0, "Material 'cp' must be a positive numerical value"
+        assert isinstance(absorb, Number) and absorb >= 0 and absorb <= 1, "Material 'absorb' must be between 0 and 1"
+        assert isinstance(emit, Number) and ((emit >= 0 and emit <= 1) or emit == -1), "Material 'emit' must be between 0 and 1"
+        assert isinstance(transmit, Number) and transmit >= 0 and transmit <= 1, "Material 'alpha' must be between 0 and 1"
 
         self.name = name
         self.k = k
         self.rho = rho
         self.cp = cp
+        self.absorb = absorb
+
+        if emit == -1:
+            self.emit = self.absorb
+        else:
+            self.emit = emit
+        self.transmit = transmit
 
 class ConstrainedIdealGas(Material):
     """
