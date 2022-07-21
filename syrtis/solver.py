@@ -29,8 +29,8 @@ class Solver:
 
         current_error = Q_loss
 
-        cutoff_ratio = 1e-5
-        target_iterations = 250
+        cutoff_ratio = 1e-4
+        target_iterations = 1000
 
         iterations = 0
 
@@ -138,7 +138,7 @@ class Solver:
 
             
 
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -146,7 +146,7 @@ class Solver:
         210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=190)
 
     bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 300, 101325, 1, "cross", 90, 90, 604, T_habitat=80)
+    300, 1, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
     
     heat_gain = []
     thicknesses = np.logspace(-3, 0, 100)
@@ -174,10 +174,10 @@ class Solver:
     plt.xlabel("Gap between inner and outer wall (m)")
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
-    plt.show()"""
+    plt.show()
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     internal_air = ConstrainedIdealGas("STP CO2", 101325, 29, 0.71, 10.9e-6, 749, 0.0153)
     co2_ambient = ConstrainedIdealGas("STP CO2", 580, 44, 0.71, 10.9e-6, 749, 0.0153)
@@ -213,3 +213,4 @@ if __name__ == "__main__":
     plt.xlabel("Heat loss")
     plt.title("Syrtis evaluation case \n Heat loss from ISS Columbus on Martian surface")
     plt.show()
+"""
