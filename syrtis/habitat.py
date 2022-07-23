@@ -127,6 +127,15 @@ class Habitat:
 
         self._shells[-1].external = True
 
+        self.exposed_convective_area()
+
+        self.verified = True
+    
+    def exposed_convective_area(self):
+        """
+        Find the area exposed to convective losses, endcap and cylinder.
+        Called during geometry verification
+        """
         self.exposed_area_cylinder = 2 * np.pi * self._shells[-1].radius_outer * self._shells[-1].length
         
         if self.orientation == "horizontal":
@@ -145,8 +154,79 @@ class Habitat:
             elif self.endcap_type == "flat":
                 self.exposed_area_endcap = 1 * np.pi * np.power(self._shells[-1].radius_outer, 2)
 
-        self.verified = True
-    
+    def exposed_radiative_area(self, solar_altitude, solar_azimuth):
+        """
+        Find the area of the habitat in direct and indirect sunlight
+        Called by solar_gain_direct and solar_gain_indirect to find areas
+        
+        Args:
+            solar_altitude (float): vertical angle of the sun above the horizon (degrees)
+            solar_azimuth (float):  horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
+        """
+        solar_altitude_rad = np.deg2rad(solar_altitude)
+        solar_azimuth_rad = np.deg2rad(solar_azimuth)
+
+        direct_solar_area = 0
+        indirect_solar_area = 0
+
+        """
+        Direct solar area - area that can see the Sun
+        """
+
+        if self.orientation == "horizontal":
+            # Area of cylinder projected to the plane perpendicular to the Sun
+            # Two components are axial and radial-ish directions
+            direct_solar_area += 2 * self._shells[-1].length * self._shells[-1].radius_outer * (
+                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) 
+                + np.sin(solar_azimuth_rad))
+            
+            if self.endcap_type == "flat":
+                direct_solar_area += np.pi * np.power(self._shells[-1].radius_outer, 2) * (
+                    np.cos(solar_altitude_rad) * abs(np.cos(solar_azimuth_rad)))
+            
+            elif self.endcap_type == "hemisphere":
+                # Area of hemisphere projected onto the plane perpendicular to the Sun
+                # Two components are axial (plan view) and radial-ish (side view)
+                direct_solar_area += np.pi * np.power(self._shells[-1].radius_outer, 2) * (
+                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * abs(np.cos(solar_azimuth_rad))
+                         
+        elif self.orientation == "vertical":
+            # Area of cylinder projected to the plane perpendicular to the Sun
+            direct_solar_area += 2 * self._shells[-1].length * self._shells[-1].radius_outer * (
+            np.sin(solar_azimuth_rad))
+
+            if self.endcap_type == "flat":
+                direct_solar_area += self.exposed_area_endcap * np.cos(solar_altitude_rad)
+            
+            elif self.endcap_type == "hemisphere":
+                # Area of hemisphere projected onto the plane perpendicular to the Sun
+                # Two components are axial (plan view) and radial-ish (side view)
+                direct_solar_area += np.pi * np.power(self._shells[-1].radius_outer, 2) * (
+                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad))
+        
+        """
+        Indirect solar area - area that can see the ground
+        """
+        if self.orientation == "horizontal":
+            indirect_solar_area += 2 * self._shells[-1].length * self._shells[-1].radius_outer
+
+            if self.endcap_type == "flat":
+                indirect_solar_area += 2 * np.pi * np.power(self._shells[-1].radius_outer, 2)
+            
+            elif self.endcap_type == "hemisphere":
+                indirect_solar_area += 4 * np.pi * np.power(self._shells[-1].radius_outer, 2)
+        
+        elif self.orientation == "vertical":
+            indirect_solar_area += 2 * self._shells[-1].length * self._shells[-1].radius_outer
+
+            if self.endcap_type == "flat":
+                pass
+
+            elif self.endcap_type == "hemisphere":
+                indirect_solar_area += 2 * np.pi * np.power(self._shells[-1].radius_outer, 2)
+        
+        return(direct_solar_area, indirect_solar_area)
+
     def build_thermal_resistances(self, shell_temperatures, g):
         """
         Outputs the thermal resistances of each shell layer
@@ -410,7 +490,10 @@ class Habitat:
         
         vf_sky = 1 - self.view_factor_ground()
 
-        Q_sky = 5.67e-8 * self._shells[-1].material.emit * (np.power(T_wall, 4) - np.power(T_sky, 4)) * (
+        Q_sky_out = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
+        
+        Q_sky_in = 5.67e-8 * self._shells[-1].material.emit * np.power(T_sky, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
 
         return(Q_sky)
@@ -426,10 +509,28 @@ class Habitat:
 
         vf_ground = 1 - self.view_factor_ground()
 
-        Q_ground = 5.67e-8 * self._shells[-1].material.emit * (np.power(T_wall, 4) - np.power(T_ground, 4)) * (
+        Q_ground_out = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
+        Q_ground_in = 5.67e-8 * self._shells[-1].material.emit * np.power(T_ground, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
 
-        return(Q_ground)
+        return(Q_ground_out, Q_ground_in)
+    
+    def solar_gain_direct(self, solar_altitude, solar_azimuth, solar_intensity, ground_albedo):
+        """
+        Calculate heat gain to the outermost layer of the habitat, or into the centre if all outer layers have sufficient transparency
+        
+        Args:
+            solar_altitude (float): vertical angle of the sun above the horizon (degrees)
+            solar_azimuth (float):  horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
+            solar_intensity (float):power delivered by solar radiation after dust absorption, W/m2
+        """
+        
+        if self._shells[-1].transmit == 0:
+            # Outer layer is opaque - all solar energy is delivered to outermost shell
+            pass
+
+
     
 
 

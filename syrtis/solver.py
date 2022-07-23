@@ -138,7 +138,7 @@ class Solver:
 
             
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -175,10 +175,11 @@ if __name__ == "__main__":
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
     plt.show()
+"""
 
-
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
+    painted_steel = Solid("Painted Steel", 150, 8700, 500, 0.1)
     internal_air = ConstrainedIdealGas("STP CO2", 101325, 29, 0.71, 10.9e-6, 749, 0.0153)
     co2_ambient = ConstrainedIdealGas("STP CO2", 580, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -186,15 +187,20 @@ if __name__ == "__main__":
 
     columbus.create_static_shell(internal_air, 2.2)
     columbus.create_static_shell(steel, 4e-3)
-    columbus.create_static_shell(co2_ambient, 1)
-    columbus.create_static_shell(steel, 4e-3)
 
     columbus.verify_geometry()
 
+    columbus_p = Habitat("horizontal", 7, "flat")
+
+    columbus_p.create_static_shell(internal_air, 2.2)
+    columbus_p.create_static_shell(painted_steel, 4e-3)
+
+    columbus_p.verify_geometry()
 
     temps = np.linspace(273, 313, 80)
     temps_c = np.linspace(0, 40, 80)
     qs = []
+    qs_painted = []
 
     for temp in temps:
         equator = Configuration("equator", "constant temperature",
@@ -206,11 +212,18 @@ if __name__ == "__main__":
     
         qs.append(q)
 
+        s_p = Solver("columbus equator Mars", columbus_p, equator)
+
+        q_p = s_p.iterate_constant_temperature()
+    
+        qs_painted.append(q_p)
+
     import matplotlib.pyplot as plt
 
-    plt.scatter(qs, temps_c)
+    plt.scatter(qs, temps_c, label="Unpainted steel")
+    plt.scatter(qs_painted, temps_c, label="Painted steel")
     plt.ylabel("Internal temperature (C)")
     plt.xlabel("Heat loss")
     plt.title("Syrtis evaluation case \n Heat loss from ISS Columbus on Martian surface")
+    plt.legend()
     plt.show()
-"""
