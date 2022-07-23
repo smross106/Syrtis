@@ -2,10 +2,9 @@
 Contains the Object which solves for a given Habitat and Configuration
 
 """
+from scipy.optimize import minimize
 
 
-from habitat import *
-from configuration import *
 
 class Solver:
     def __init__(self, name, habitat, configuration):
@@ -48,12 +47,44 @@ class Solver:
 
             Q_loss = (Q_wall + (99 * Q_loss)) / 100
             shell_temperatures = new_shell_temperatures
-
+        
+        print("a")
+        
         if (abs(current_error/Q_loss) > cutoff_ratio):
             print("Did not converge " + str(abs(current_error/Q_loss)))
             return(np.nan)
         else:
             return(Q_loss)
+        
+        """inputs = [*[Q_loss], *shell_temperatures]
+
+        minimised_outputs = minimize(self.minimisation, inputs, method="Powell", options={"ftol":cutoff_ratio, "xtol":cutoff_ratio})
+
+        print(minimised_outputs)
+
+        Q_loss = minimised_outputs.x[0]
+
+        return(Q_loss)"""
+
+    def minimisation(self, inputs):
+        """
+        Minimise-able function, called into scipy.optimize solvers
+
+        Args:
+            inputs (list of floats):    list of all inputs to allow solving
+                inputs[0]:              power loss from habitat as calculated by solve_wall_loss
+                inputs[1:n]             shell temperatures for shells [0:n-1]
+        """
+        Q_loss = inputs[0]
+        shell_temperatures = inputs[1:]
+
+        new_shell_temperatures = self.solve_habitat_conduction(shell_temperatures, Q_loss)
+
+        Q_wall = self.solve_wall_loss(new_shell_temperatures[-1])
+
+        error = abs(Q_loss - Q_wall)
+
+        return(error)
 
     def generate_initial_state(self, T_internal_start):
         # Assume there are (N+1) Shells, set the outermost - not attached to any physical Shell has temperature equal to outside air
@@ -159,8 +190,8 @@ class Solver:
         return(error)
 
             
-
-"""if __name__ == "__main__":
+"""
+if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -168,7 +199,7 @@ class Solver:
     300, 1, 0.29, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
     
     heat_gain = []
-    thicknesses = np.logspace(-3, 0, 100)
+    thicknesses = np.logspace(-3, 0, 10)
     #thicknesses = np.linspace(0.001, 1.001, 500)
 
     for thickness in thicknesses:
@@ -193,10 +224,10 @@ class Solver:
     plt.xlabel("Gap between inner and outer wall (m)")
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
-    plt.show()
-"""
+    plt.show()"""
 
-if __name__ == "__main__":
+
+"""if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     painted_steel = Solid("Painted Steel", 150, 8700, 500, 0.1)
     internal_air = ConstrainedIdealGas("STP CO2", 101325, 29, 0.71, 10.9e-6, 749, 0.0153)
@@ -248,3 +279,4 @@ if __name__ == "__main__":
     plt.title("Syrtis evaluation case \n Heat loss from ISS Columbus on Martian surface")
     plt.legend()
     plt.show()
+"""

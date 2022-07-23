@@ -20,9 +20,9 @@ if __name__ == "__main__":
     from shell import *
     #from material import *
 else:
-    from shell import *
-    #from syrtis.shell import *
-    #from syrtis.material import *
+    #from shell import *
+    from syrtis.shell import *
+    from syrtis.material import *
 
 endcap_types = ["hemisphere", "flat"]
 
