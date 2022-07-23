@@ -477,46 +477,71 @@ class Habitat:
         
         return(vf)
 
-    def radiative_loss_sky(self, T_air, T_wall):
+    def radiative_loss_sky(self, T_wall):
+        """
+        Calculate radiative loss to the sky.
+
+        Args:
+            T_wall (float):             temperature of the wall (K)
+        """
+        
+        vf_sky = 1 - self.view_factor_ground()
+
+        Q_sky = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
+        
+        return(Q_sky)
+    
+    def radiative_gain_sky(self, T_air):
         """
         Calculate radiative loss to the sky.
 
         Args:
             T_air (float):              temperature of the ambient surrounding air (K)
-            T_wall (float):             temperature of the wall (K)
         """
 
         T_sky = self.sky_temperature(T_air)
         
         vf_sky = 1 - self.view_factor_ground()
-
-        Q_sky_out = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
-            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
         
-        Q_sky_in = 5.67e-8 * self._shells[-1].material.emit * np.power(T_sky, 4) * (
+        Q_sky = 5.67e-8 * self._shells[-1].material.absorb * np.power(T_sky, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
 
+        # A negative sign is used for consistency with convention that +ve Q = heat loss
         return(Q_sky)
     
-    def radiative_loss_ground(self, T_ground, T_wall):
+    def radiative_loss_ground(self, T_wall):
         """
         Calculate radiative loss to the sky.
 
         Args:
-            T_ground (float):              temperature of the ground(K)
             T_wall (float):             temperature of the wall (K)
         """
 
         vf_ground = 1 - self.view_factor_ground()
 
-        Q_ground_out = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
-            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
-        Q_ground_in = 5.67e-8 * self._shells[-1].material.emit * np.power(T_ground, 4) * (
+        Q_ground = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
 
-        return(Q_ground_out, Q_ground_in)
+        return(Q_ground)
     
-    def solar_gain_direct(self, solar_altitude, solar_azimuth, solar_intensity, ground_albedo):
+    def radiative_gain_ground(self, T_ground):
+        """
+        Calculate radiative loss to the sky.
+
+        Args:
+            T_ground (float):              temperature of the ground(K)
+        """
+
+        vf_ground = 1 - self.view_factor_ground()
+
+        Q_ground = 5.67e-8 * self._shells[-1].material.absorb * np.power(T_ground, 4) * (
+            self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
+
+        # A negative sign is used for consistency with convention that +ve Q = heat loss
+        return(-Q_ground)
+
+    def solar_gain_direct(self, solar_altitude, solar_azimuth, solar_intensity):
         """
         Calculate heat gain to the outermost layer of the habitat, or into the centre if all outer layers have sufficient transparency
         
@@ -525,10 +550,35 @@ class Habitat:
             solar_azimuth (float):  horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
             solar_intensity (float):power delivered by solar radiation after dust absorption, W/m2
         """
+
+        direct_lit_area, indirect_lit_area = self.exposed_radiative_area(solar_altitude, solar_azimuth)
         
-        if self._shells[-1].transmit == 0:
+        if self._shells[-1].material.transmit == 0:
             # Outer layer is opaque - all solar energy is delivered to outermost shell
-            pass
+            Q_solar_direct = solar_intensity * direct_lit_area * self._shells[-1].material.absorb
+        
+        # A negative sign is used for consistency with convention that +ve Q = heat loss
+        return(-Q_solar_direct)
+    
+    def solar_gain_indirect(self, solar_altitude, solar_azimuth, solar_intensity, albedo_ground):
+        """
+        Calculate heat gain to the outermost layer of the habitat, or into the centre if all outer layers have sufficient transparency
+        
+        Args:
+            solar_altitude (float): vertical angle of the sun above the horizon (degrees)
+            solar_azimuth (float):  horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
+            solar_intensity (float):power delivered by solar radiation after dust absorption, W/m2
+            albedo_ground (float):  albedo of the surface around the habitat
+        """
+
+        direct_lit_area, indirect_lit_area = self.exposed_radiative_area(solar_altitude, solar_azimuth)
+        
+        if self._shells[-1].material.transmit == 0:
+            # Outer layer is opaque - all solar energy is delivered to outermost shell
+            Q_solar_indirect = solar_intensity * albedo_ground * indirect_lit_area * self._shells[-1].material.absorb
+        
+        # A negative sign is used for consistency with convention that +ve Q = heat loss
+        return(Q_solar_indirect)
 
 
     

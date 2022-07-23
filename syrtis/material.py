@@ -39,6 +39,7 @@ class Solid(Material):
             self.emit = self.absorb
         else:
             self.emit = emit
+            
         self.transmit = transmit
 
 class ConstrainedIdealGas(Material):

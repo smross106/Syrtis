@@ -49,8 +49,6 @@ class Solver:
             Q_loss = (Q_wall + (99 * Q_loss)) / 100
             shell_temperatures = new_shell_temperatures
 
-            
-        
         if (abs(current_error/Q_loss) > cutoff_ratio):
             print("Did not converge " + str(abs(current_error/Q_loss)))
             return(np.nan)
@@ -95,13 +93,18 @@ class Solver:
         
         return(updated_shell_temperatures)
     
-    def solve_wall_loss(self, wall_temperature):
+    def solve_wall_loss(self, wall_temperature, report_full=False):
 
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
         Q_wall = 0
         Q_endcap = 0
-        Q_rad_sky = 0
-        Q_rad_ground = 0
+        Q_rad_sky_out = 0
+        Q_rad_sky_in = 0
+        Q_rad_ground_out = 0
+        Q_rad_ground_in = 0
+        Q_solar_direct = 0
+        Q_solar_indirect = 0
+
         
         if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
             self.habitat.orientation == "vertical"):
@@ -126,10 +129,29 @@ class Solver:
                                                             self.configuration.T_air,
                                                             wall_temperature)
         
-        Q_rad_sky = self.habitat.radiative_loss_sky(self.configuration.T_air, wall_temperature)
-        Q_rad_ground = self.habitat.radiative_loss_ground(self.configuration.T_ground, wall_temperature)
+        
+        # Sign convention is preserved by functions in Habitat
+        Q_rad_sky_out = self.habitat.radiative_loss_sky(wall_temperature)
+        Q_rad_sky_in = self.habitat.radiative_gain_sky(self.configuration.T_air)
 
-        return(Q_wall + Q_endcap + Q_rad_sky + Q_rad_ground)
+        Q_rad_ground_out = self.habitat.radiative_loss_ground(wall_temperature)
+        Q_rad_ground_in = self.habitat.radiative_loss_ground(self.configuration.T_ground)
+        
+        if self.configuration.solar_altitude > 0:
+            Q_solar_direct = self.habitat.solar_gain_direct(self.configuration.solar_altitude,
+                                                            self.configuration.solar_azimuth,
+                                                            self.configuration.solar_intensity)
+            
+            Q_solar_indirect = self.habitat.solar_gain_indirect(self.configuration.solar_altitude,
+                                                            self.configuration.solar_azimuth,
+                                                            self.configuration.solar_intensity,
+                                                            self.configuration.albedo_ground)
+
+        Q_convective = Q_wall + Q_endcap
+        Q_rad_environment_out = Q_rad_sky_out + Q_rad_ground_out
+        Q_rad_environment_in = Q_rad_sky_in + Q_rad_ground_in
+
+        return(Q_convective + Q_rad_environment_out + Q_rad_environment_in + Q_solar_direct + Q_solar_indirect)
     
     def generate_error(self, state1, state2):
         error = np.sum((np.ndarray(state1) - np.ndarray(state2))**2)
@@ -142,11 +164,8 @@ class Solver:
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
-    equator = Configuration("equator", "constant temperature",
-        210, 0.1, 210, 580, 1, "cross", 90, 90, 580, T_habitat=190)
-
     bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
+    300, 1, 0.29, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
     
     heat_gain = []
     thicknesses = np.logspace(-3, 0, 100)
@@ -197,14 +216,14 @@ if __name__ == "__main__":
 
     columbus_p.verify_geometry()
 
-    temps = np.linspace(273, 313, 80)
-    temps_c = np.linspace(0, 40, 80)
+    temps = np.linspace(273, 313, 40)
+    temps_c = np.linspace(0, 40, 40)
     qs = []
     qs_painted = []
 
     for temp in temps:
         equator = Configuration("equator", "constant temperature",
-            210, 0.1, 210, 580, 1, "cross", 90, 90, 605, T_habitat=temp)
+            210, 0.1, 0.29, 210, 580, 1, "cross", 90, 90, 605, T_habitat=temp)
     
         s = Solver("columbus equator Mars", columbus, equator)
 
@@ -217,6 +236,8 @@ if __name__ == "__main__":
         q_p = s_p.iterate_constant_temperature()
     
         qs_painted.append(q_p)
+    
+    print(qs[0])
 
     import matplotlib.pyplot as plt
 
