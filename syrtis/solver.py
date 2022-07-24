@@ -4,6 +4,8 @@ Contains the Object which solves for a given Habitat and Configuration
 """
 from scipy.optimize import minimize
 
+from syrtis.habitat import *
+from syrtis.configuration import *
 
 
 class Solver:
@@ -47,8 +49,6 @@ class Solver:
 
             Q_loss = (Q_wall + (99 * Q_loss)) / 100
             shell_temperatures = new_shell_temperatures
-        
-        print("a")
         
         if (abs(current_error/Q_loss) > cutoff_ratio):
             print("Did not converge " + str(abs(current_error/Q_loss)))
@@ -190,8 +190,8 @@ class Solver:
         return(error)
 
             
-"""
-if __name__ == "__main__":
+
+"""if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
@@ -224,8 +224,8 @@ if __name__ == "__main__":
     plt.xlabel("Gap between inner and outer wall (m)")
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
-    plt.show()"""
-
+    plt.show()
+"""
 
 """if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)
