@@ -21,8 +21,8 @@ if __name__ == "__main__":
     #from material import *
 else:
     #from shell import *
-    from syrtis.shell import *
-    from syrtis.material import *
+    from shell import *
+    from material import *
 
 endcap_types = ["hemisphere", "flat"]
 
@@ -196,7 +196,7 @@ class Habitat:
             np.sin(solar_azimuth_rad))
 
             if self.endcap_type == "flat":
-                direct_solar_area += self.exposed_area_endcap * np.cos(solar_altitude_rad)
+                direct_solar_area += self.exposed_area_endcap * np.sin(solar_altitude_rad)
             
             elif self.endcap_type == "hemisphere":
                 # Area of hemisphere projected onto the plane perpendicular to the Sun

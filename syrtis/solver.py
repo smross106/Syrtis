@@ -4,8 +4,8 @@ Contains the Object which solves for a given Habitat and Configuration
 """
 from scipy.optimize import minimize
 
-from syrtis.habitat import *
-from syrtis.configuration import *
+from habitat import *
+from configuration import *
 
 
 class Solver:
@@ -23,48 +23,85 @@ class Solver:
     def iterate_constant_temperature(self):
 
         T_internal_start = self.configuration.T_habitat
-        Q_initial_start = 1000
+        Q_internal_flux = 1000
         
-        Q_loss = Q_initial_start
+        Q_internal_flux = Q_internal_flux
         shell_temperatures = self.generate_initial_state(T_internal_start)
 
-        current_error = Q_loss
+        current_error = Q_internal_flux
 
         cutoff_ratio = 1e-4
-        target_iterations = 1000
+        target_iterations = 1500
 
         iterations = 0
 
-        while (abs(current_error/Q_loss) > cutoff_ratio) and iterations < target_iterations:
+        while (abs(current_error) > cutoff_ratio) and iterations < target_iterations:
 
-            new_shell_temperatures = self.solve_habitat_conduction(shell_temperatures, Q_loss)
+            new_shell_temperatures = self.conduction_temperatures(shell_temperatures, Q_internal_flux)
 
-            Q_wall = self.solve_wall_loss(new_shell_temperatures[-1])
+            Q_external_flux = self.external_losses(new_shell_temperatures[-1])
 
             #print(current_error, Q_loss, Q_wall, new_shell_temperatures[-1])
 
-            new_error = abs(Q_loss - Q_wall)
+            new_error = abs(Q_internal_flux - Q_external_flux) / Q_internal_flux
             current_error = new_error
             iterations += 1
 
-            Q_loss = (Q_wall + (99 * Q_loss)) / 100
+            Q_internal_flux = (Q_external_flux + (99 * Q_internal_flux)) / 100
             shell_temperatures = new_shell_temperatures
         
-        if (abs(current_error/Q_loss) > cutoff_ratio):
-            print("Did not converge " + str(abs(current_error/Q_loss)))
+        if (abs(current_error) > cutoff_ratio):
+            print("Did not converge " + str(abs(current_error/Q_internal_flux)))
             return(np.nan)
         else:
-            return(Q_loss)
+            return(Q_external_flux)
         
-        """inputs = [*[Q_loss], *shell_temperatures]
+        """inputs = [*[Q_internal_flux], *shell_temperatures]
 
-        minimised_outputs = minimize(self.minimisation, inputs, method="Powell", options={"ftol":cutoff_ratio, "xtol":cutoff_ratio})
+        minimised_outputs = minimize(self.minimisation, inputs, options={"ftol":cutoff_ratio, "xtol":cutoff_ratio})
 
         print(minimised_outputs)
 
-        Q_loss = minimised_outputs.x[0]
+        Q_internal_flux = minimised_outputs.x[0]
+        shell_temperatures = minimised_outputs.x[1:]"""
 
-        return(Q_loss)"""
+        
+
+        breakdown = self.external_losses(shell_temperatures[-1], True)
+        print(breakdown)
+
+        checked_shell_temperatures = self.conduction_temperatures(shell_temperatures, breakdown["Power loss"])
+        print(checked_shell_temperatures)
+
+        return(Q_internal_flux)
+    
+    def verify_temperatures(self, shell_temperatures):
+        """
+        Verify that a given set of temperatures are either monotonically increasing or decreasing 
+        This is a reasonable metric for a good solution, as it implies that flux is consistent through the Habitat
+        May be violated in future if heating/cooling jackets are added as a Shell subclass
+
+        Also verify that the external wall temperature is between the internal and environment temperatures
+        """
+        non_increasing = all(x>=y for x, y in zip(shell_temperatures, shell_temperatures[1:]))
+        non_decreasing = all(x<=y for x, y in zip(shell_temperatures, shell_temperatures[1:]))
+
+        temperature_correct = True
+        
+        if self.configuration.solution_type == "constant temperature":
+            if self.configuration.T_habitat > self.configuration.T_air:
+                # Habitat should be losing heat to the environment
+                # External shell temperature should not be substantially hotter than the habitat
+                if shell_temperatures[-1] > (self.configuration.T_habitat + 50):
+                    temperature_correct = False
+            
+            elif self.configuration.T_habitat < self.configuration.T_air:
+                # Habitat should be strictly gaining heat from the environment
+                # External shell temperature should be greater than the habitat
+                if shell_temperatures[-1] < self.configuration.T_habitat:
+                    temperature_correct = False
+
+        return((non_increasing or non_decreasing) and temperature_correct)
 
     def minimisation(self, inputs):
         """
@@ -75,16 +112,21 @@ class Solver:
                 inputs[0]:              power loss from habitat as calculated by solve_wall_loss
                 inputs[1:n]             shell temperatures for shells [0:n-1]
         """
-        Q_loss = inputs[0]
+        Q_internal_flux = inputs[0]
         shell_temperatures = inputs[1:]
 
-        new_shell_temperatures = self.solve_habitat_conduction(shell_temperatures, Q_loss)
+        temperature_verification = self.verify_temperatures(shell_temperatures)
+        if temperature_verification == False:
+            return(1e99)
 
-        Q_wall = self.solve_wall_loss(new_shell_temperatures[-1])
+        else:
+            new_shell_temperatures = self.conduction_temperatures(shell_temperatures, Q_internal_flux)
 
-        error = abs(Q_loss - Q_wall)
+            Q_external_flux = self.external_losses(new_shell_temperatures[-1])
 
-        return(error)
+            error = abs(Q_internal_flux - Q_external_flux)**2
+
+            return(error)
 
     def generate_initial_state(self, T_internal_start):
         # Assume there are (N+1) Shells, set the outermost - not attached to any physical Shell has temperature equal to outside air
@@ -98,7 +140,7 @@ class Solver:
 
         return(initial_shell_temperatures)
 
-    def solve_habitat_conduction(self, shell_temperatures, Q):
+    def conduction_temperatures(self, shell_temperatures, Q):
         
         wall_resistances = self.habitat.build_thermal_resistances(shell_temperatures, self.configuration.GRAVITY)
 
@@ -107,7 +149,11 @@ class Solver:
         # For both calculation types, the interior wall temperature is considered constant in this calculation
         # The temperatures throughout the rest of the Shells are found with the thermal resistances
 
-        internal_temperature = shell_temperatures[0]
+        if self.configuration.solution_type == "constant temperature":
+            internal_temperature = self.configuration.T_habitat
+        else:
+            internal_temperature = shell_temperatures[0]
+
         updated_shell_temperatures[0] = internal_temperature
 
         for shell_count in range(1,len(wall_resistances)+1):
@@ -116,7 +162,7 @@ class Solver:
 
             if shell_temperature < 0:
                 #print("Shell temperature error ", str(shell_temperature))
-                shell_temperature = shell_temperatures[shell_count] / 2
+                shell_temperature = shell_temperatures[shell_count]
                 
                 #break
 
@@ -124,7 +170,7 @@ class Solver:
         
         return(updated_shell_temperatures)
     
-    def solve_wall_loss(self, wall_temperature, report_full=False):
+    def external_losses(self, wall_temperature, report_full=False):
 
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
         Q_wall = 0
@@ -182,7 +228,23 @@ class Solver:
         Q_rad_environment_out = Q_rad_sky_out + Q_rad_ground_out
         Q_rad_environment_in = Q_rad_sky_in + Q_rad_ground_in
 
-        return(Q_convective + Q_rad_environment_out + Q_rad_environment_in + Q_solar_direct + Q_solar_indirect)
+        Q_total = Q_convective + Q_rad_environment_out + Q_rad_environment_in + Q_solar_direct + Q_solar_indirect
+        
+        if report_full:
+            reporting_dict = {
+                "Power loss": Q_total,
+                "Outer wall temperature": wall_temperature,
+                "Convective loss from cylinder": Q_wall,
+                "Convective loss from endcap": Q_endcap,
+                "Radiative loss to sky": Q_rad_sky_out,
+                "Radiative loss to ground": Q_rad_ground_out,
+                "Radiative gain from environment": Q_rad_environment_in,
+                "Direct solar gain": Q_solar_direct,
+                "Reflected solar gain": Q_solar_indirect
+            }
+            return(reporting_dict)
+        else:
+            return(Q_total)
     
     def generate_error(self, state1, state2):
         error = np.sum((np.ndarray(state1) - np.ndarray(state2))**2)
@@ -191,8 +253,8 @@ class Solver:
 
             
 
-"""if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500, 0.55)
+if __name__ == "__main__":
+    steel = Solid("Steel", 150, 8700, 500, 0.1)
     co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
 
     bocachica = Configuration("bocachica", "constant temperature",
@@ -225,7 +287,7 @@ class Solver:
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
     plt.show()
-"""
+
 
 """if __name__ == "__main__":
     steel = Solid("Steel", 150, 8700, 500, 0.55)

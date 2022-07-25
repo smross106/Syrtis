@@ -10,7 +10,7 @@ References:
 """
 
 
-from syrtis.material import *
+from material import *
 
 
 
