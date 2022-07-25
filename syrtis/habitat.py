@@ -11,18 +11,17 @@ References:
  - [6] - The thermal control system of NASA’s Curiosity rover: a case study, Quattrocchi et al, 2022 
 """
 
-from gettext import translation
 import numpy as np
 from numbers import Number
 
 
 if __name__ == "__main__":
     from shell import *
-    #from material import *
+    from material import *
 else:
     #from shell import *
-    from shell import *
-    from material import *
+    from syrtis.shell import *
+    from syrtis.material import *
 
 endcap_types = ["hemisphere", "flat"]
 
@@ -193,7 +192,7 @@ class Habitat:
         elif self.orientation == "vertical":
             # Area of cylinder projected to the plane perpendicular to the Sun
             direct_solar_area += 2 * self._shells[-1].length * self._shells[-1].radius_outer * (
-            np.sin(solar_azimuth_rad))
+            np.sin(solar_altitude_rad))
 
             if self.endcap_type == "flat":
                 direct_solar_area += self.exposed_area_endcap * np.sin(solar_altitude_rad)

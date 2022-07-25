@@ -2,7 +2,7 @@
 Stores the Configuration for a given simulation: habitat heat loading and external environment
 """
 
-from material import *
+from syrtis.material import *
 
 solution_types = ["constant power", "constant temperature"]
 air_directions = ["axial", "cross"]

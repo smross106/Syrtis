@@ -4,8 +4,8 @@ Contains the Object which solves for a given Habitat and Configuration
 """
 from scipy.optimize import minimize
 
-from habitat import *
-from configuration import *
+from syrtis.habitat import *
+from syrtis.configuration import *
 
 
 class Solver:
@@ -20,7 +20,7 @@ class Solver:
         self.habitat = habitat
         self.configuration = configuration
     
-    def iterate_constant_temperature(self):
+    def iterate_constant_temperature(self, verbose=False):
 
         T_internal_start = self.configuration.T_habitat
         Q_internal_flux = 1000
@@ -47,13 +47,17 @@ class Solver:
             current_error = new_error
             iterations += 1
 
-            Q_internal_flux = (Q_external_flux + (99 * Q_internal_flux)) / 100
+            Q_internal_flux = (Q_external_flux + (98 * Q_internal_flux)) / 99
             shell_temperatures = new_shell_temperatures
         
         if (abs(current_error) > cutoff_ratio):
-            print("Did not converge " + str(abs(current_error/Q_internal_flux)))
+            print("Did not converge " + str(abs(current_error)))
             return(np.nan)
         else:
+            if verbose:
+                breakdown = self.external_losses(shell_temperatures[-1], True)
+                print(breakdown)
+                
             return(Q_external_flux)
         
         """inputs = [*[Q_internal_flux], *shell_temperatures]
@@ -67,8 +71,7 @@ class Solver:
 
         
 
-        breakdown = self.external_losses(shell_temperatures[-1], True)
-        print(breakdown)
+        
 
         checked_shell_temperatures = self.conduction_temperatures(shell_temperatures, breakdown["Power loss"])
         print(checked_shell_temperatures)
@@ -182,7 +185,6 @@ class Solver:
         Q_solar_direct = 0
         Q_solar_indirect = 0
 
-        
         if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
             self.habitat.orientation == "vertical"):
             Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
@@ -238,7 +240,8 @@ class Solver:
                 "Convective loss from endcap": Q_endcap,
                 "Radiative loss to sky": Q_rad_sky_out,
                 "Radiative loss to ground": Q_rad_ground_out,
-                "Radiative gain from environment": Q_rad_environment_in,
+                "Radiative gain from sky": Q_rad_sky_in,
+                "Radiative gain from ground": Q_rad_ground_in,
                 "Direct solar gain": Q_solar_direct,
                 "Reflected solar gain": Q_solar_indirect
             }
@@ -261,7 +264,7 @@ if __name__ == "__main__":
     300, 1, 0.29, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
     
     heat_gain = []
-    thicknesses = np.logspace(-3, 0, 10)
+    thicknesses = np.logspace(-3, 0.75, 80)
     #thicknesses = np.linspace(0.001, 1.001, 500)
 
     for thickness in thicknesses:
@@ -282,7 +285,8 @@ if __name__ == "__main__":
 
     plt.scatter(thicknesses, heat_gain)
     plt.xscale("log")
-    plt.xlim(9e-4, 1.5)
+    plt.xlim(9e-4, 10)
+    plt.ylim(7e5,14e5)
     plt.xlabel("Gap between inner and outer wall (m)")
     plt.ylabel("Heat gain into tank (W)")
     plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
