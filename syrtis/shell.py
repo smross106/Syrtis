@@ -9,10 +9,7 @@ References:
 
 """
 
-
 from syrtis.material import *
-
-
 
 class Shell:
     """
@@ -189,11 +186,22 @@ class StaticShell(Shell):
 
         return(R_th)
 
-if __name__ == "__main__":
-    co2 = ConstrainedIdealGas("co2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
-    steel = Solid("steel", 150, 8700, 500)
+class GroundLevel(Shell):
+    """
+    An object to store the ground, whenever the Habitat is in contact with the ground
 
-    s = StaticShell("horizontal", co2, 1, 0.2, 1)
-    s.calculate_thermal_resistance(250, 10, 9.81)
+    Args:
+        habitat_axis_height (float):        height of the habitat central axis above ground level, for horizontal orientation
+                                            height of the lower end of the cylinder above ground level, for vertical orientation
+                                            Defaults to a large value, indicating no thermal conduction contact (m)
+        thermal_resistance (float):         thermal resistance between Habitat outer wall, default to 0 = no thermal contact (K/W)
+    
+    """
+    def __init__(self, habitat_axis_height=1e3, thermal_resistance=0):
+        
+        assert isinstance(habitat_axis_height, Number), "GroundLevel 'height_below_habitat' must be a numerical value"
 
-    print(s.thermal_resistance)
+        assert isinstance(thermal_resistance, Number) and thermal_resistance >= 0, "GroundLevel 'thermal_resistance' must be a positive numerical value"
+
+        self.habitat_axis_height = habitat_axis_height
+        self.thermal_resistance = thermal_resistance
