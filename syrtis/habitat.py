@@ -84,7 +84,7 @@ class Habitat:
                                             Defaults to a large value, indicating no thermal conduction contact (m)
         thermal_resistance (float):         thermal resistance between Habitat outer wall, default to 0 = no thermal contact (K/W)
         """
-        assert self.groundlevel=="None", "A GroundLevel has already been set"
+        assert self.groundlevel==None, "A GroundLevel has already been set"
 
         groundlevel = GroundLevel(habitat_axis_height, thermal_resistance)
 
@@ -669,6 +669,20 @@ class Habitat:
         # A negative sign is used for consistency with convention that +ve Q = heat loss
         return(Q_solar_indirect)
 
+    def conductive_loss_fixed_resistance(self, T_wall, T_ground, R_ground):
+        """
+        Calculate thermal resistance losses for a fixed thermal resistance value
+
+        Args:
+            T_wall (float):     temperature of the outer wall (K)
+            T_ground (float):   temperature of the far-field ground (K)
+            R_ground (float):   thermal resistance from the outer wall to the ground (K/W)
+        """
+
+        Q_ground = (T_wall - T_ground) / R_ground
+        
+        return(Q_ground)
+
     def conductive_loss_horizontal_cylinder_steady(self, T_wall, T_ground, k_ground, R_wall):
         """
         Calculate the conductive loss from a horizontal cylinder in contact with the ground, steady-state solution
@@ -680,7 +694,7 @@ class Habitat:
             T_wall (float):         temperature of the outer wall (K)
             T_ground (float):       temperature of the far-field ground (K)
             k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
-            R_wall (float):         thermal resistance of the entire wall, required for Biot number. K/W
+            R_wall (float):         thermal resistance of the entire wall, required for Biot number (K/W)
         """
 
         if self.groundlevel == None:
@@ -758,10 +772,10 @@ class Habitat:
         if self.groundlevel == None:
             return(0)
         
-        elif self.groundlevel.habitat_axis_height > 0:
+        elif self.groundlevel.habitat_axis_height >= 0:
             return (0)
 
-        if self.groundlevel.habitat_axis_height <= (-self.length_outer):
+        elif self.groundlevel.habitat_axis_height < (-self.length_outer):
             # Habitat is partially below 
             buried_depth = -self.groundlevel.habitat_axis_height
 

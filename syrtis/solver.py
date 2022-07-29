@@ -26,7 +26,7 @@ class Solver:
         Q_internal_flux = 1000
         
         Q_internal_flux = Q_internal_flux
-        shell_temperatures = self.generate_initial_state(T_internal_start)
+        shell_temperatures, R_wall = self.generate_initial_state(T_internal_start)
 
         current_error = Q_internal_flux
 
@@ -37,9 +37,9 @@ class Solver:
 
         while (abs(current_error) > cutoff_ratio) and iterations < target_iterations:
 
-            new_shell_temperatures = self.conduction_temperatures(shell_temperatures, Q_internal_flux)
+            new_shell_temperatures, R_wall = self.conduction_temperatures(shell_temperatures, Q_internal_flux)
 
-            Q_external_flux = self.external_losses(new_shell_temperatures[-1])
+            Q_external_flux = self.external_losses(new_shell_temperatures[-1], R_wall)
 
             #print(current_error, Q_loss, Q_wall, new_shell_temperatures[-1])
 
@@ -141,11 +141,13 @@ class Solver:
         
         initial_shell_temperatures = np.linspace(T_internal_start, T_external_wall, N_temperatures)
 
-        return(initial_shell_temperatures)
+        return(initial_shell_temperatures, 1)
 
     def conduction_temperatures(self, shell_temperatures, Q):
         
         wall_resistances = self.habitat.build_thermal_resistances(shell_temperatures, self.configuration.GRAVITY)
+
+        total_resistance = sum(wall_resistances)
 
         updated_shell_temperatures = shell_temperatures
 
@@ -171,9 +173,9 @@ class Solver:
 
             updated_shell_temperatures[shell_count] = shell_temperature
         
-        return(updated_shell_temperatures)
+        return(updated_shell_temperatures, total_resistance)
     
-    def external_losses(self, wall_temperature, report_full=False):
+    def external_losses(self, wall_temperature, thermal_resistance_wall, report_full=False):
 
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
         Q_wall = 0
@@ -184,6 +186,7 @@ class Solver:
         Q_rad_ground_in = 0
         Q_solar_direct = 0
         Q_solar_indirect = 0
+        Q_conduction = 0
 
         if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
             self.habitat.orientation == "vertical"):
@@ -230,7 +233,36 @@ class Solver:
         Q_rad_environment_out = Q_rad_sky_out + Q_rad_ground_out
         Q_rad_environment_in = Q_rad_sky_in + Q_rad_ground_in
 
-        Q_total = Q_convective + Q_rad_environment_out + Q_rad_environment_in + Q_solar_direct + Q_solar_indirect
+        if self.habitat.groundlevel != None:
+            if self.habitat.groundlevel.thermal_resistance != 0:
+                Q_conduction = self.habitat.conductive_loss_fixed_resistance(wall_temperature,
+                                                                            self.configuration.T_ground,
+                                                                            self.habitat.groundlevel.thermal_resistance)
+            else:
+                if self.habitat.orientation == "horizontal":
+                    Q_conduction += self.habitat.conductive_loss_horizontal_cylinder_steady(wall_temperature,
+                                                                                            self.configuration.T_ground,
+                                                                                            self.configuration.k_ground,
+                                                                                            thermal_resistance_wall)
+                elif self.habitat.orientation == "vertical":
+                    Q_conduction += self.habitat.conductive_loss_vertical_cylinder_steady(wall_temperature,
+                                                                                        self.configuration.T_ground,
+                                                                                        self.configuration.k_ground)
+                
+                if self.habitat.endcap_type == "hemisphere":
+                    Q_conduction += self.habitat.conductive_loss_hemisphere_steady(wall_temperature,
+                                                                                self.configuration.T_ground,
+                                                                                self.configuration.k_ground)
+                elif self.habitat.endcap_type == "flat":
+                    Q_conduction += self.habitat.conductive_loss_disc_steady(wall_temperature,
+                                                                            self.configuration.T_ground,
+                                                                            self.configuration.k_ground)
+
+
+        Q_total = (Q_convective + 
+        Q_rad_environment_out + Q_rad_environment_in + 
+        Q_solar_direct + Q_solar_indirect + 
+        Q_conduction)
         
         if report_full:
             reporting_dict = {
