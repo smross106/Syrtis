@@ -9,6 +9,10 @@ References:
  - [4] - Radiation View Factors, http://webserver.dmt.upm.es/~isidoro/tc3/Radiation%20View%20factors.pdf
  - [5] - Thermal control of MSL Rover "Curiosity" using an Active Fluid Loop, Birur 2013
  - [6] - The thermal control system of NASA’s Curiosity rover: a case study, Quattrocchi et al, 2022 
+ - [7] - Conduction heat transfer solutions, VanSant 1980
+ - [8] - Thermal Spreading Resistance of Arbitrary-Shape Heat Sources on a Half-Space: A Unified Approach, Sadeghi et al 2010
+ - [9] - Heat transfer from partially buried pipes, Morud & Simonsen 2007
+ - [10]- Proposed OHTC Formula for Subsea Pipelines Considering Thermal Conductivities of Multi-Layered Soils, Park et al 2018
 """
 
 import numpy as np
@@ -147,11 +151,11 @@ class Habitat:
 
         # Set whole-Habitat radius_outer and length_outer
         self.radius_outer = self._shells[-1].radius_outer
-        self.length_outer = self._shells[-1].length_outer
+        self.length_outer = self._shells[-1].length
 
 
         # If ground level is set, use it to calculate angle of contact
-        if self.groundlevel != None:
+        if self.groundlevel != None and self.orientation == "horizontal":
             if self.groundlevel.habitat_axis_height > self.radius_outer:
                 # Habitat is entirely above the ground
                 self.ground_contact_angle = 0
@@ -185,7 +189,7 @@ class Habitat:
             
             elif self.endcap_type == "flat":
                 self.exposed_area_endcap = 2 * np.power(self.radius_outer, 2) * (np.pi - 
-                np.deg2rad(self.ground_contact_angle) + 0.5 * np.sin(np.deg2rad(2 * self.ground_contact_angle)))
+                np.deg2rad(self.ground_contact_angle) + 0.5 * np.c(np.deg2rad(2 * self.ground_contact_angle)))
         
         elif self.orientation == "vertical":
             if self.endcap_type == "hemisphere":
@@ -194,7 +198,6 @@ class Habitat:
             elif self.endcap_type == "flat":
                 self.exposed_area_endcap = 1 * np.pi * np.power(self.radius_outer, 2)
             
-
 
             if self.groundlevel == None:
                 self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer
@@ -228,6 +231,12 @@ class Habitat:
         direct_solar_area = 0
         indirect_solar_area = 0
 
+        if self.groundlevel != None:
+            if self.orientation == "horizontal" and self.groundlevel.habitat_axis_height < (-self.radius_outer):
+                return(direct_solar_area, indirect_solar_area)
+            elif self.orientation == "vertical" and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer):
+                return(direct_solar_area, indirect_solar_area)
+
         """
         Direct solar area - area that can see the Sun
         """
@@ -256,41 +265,52 @@ class Habitat:
 
             if self.groundlevel == None:
                 direct_solar_area += 2 * self.length_outer * self.radius_outer * (
-                np.sin(solar_altitude_rad))
+                np.sin(solar_altitude_rad)) 
             
             else:
                 direct_solar_area += 2 * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer * (
-                np.sin(solar_altitude_rad))
+                np.sin(solar_altitude_rad)) 
 
             if self.endcap_type == "flat":
-                direct_solar_area += self.exposed_area_endcap * np.sin(solar_altitude_rad)
+                direct_solar_area += self.exposed_area_endcap * np.sin(solar_altitude_rad) 
             
             elif self.endcap_type == "hemisphere":
                 # Area of hemisphere projected onto the plane perpendicular to the Sun
                 # Two components are axial (plan view) and radial-ish (side view)
                 direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
-                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad))
+                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * 0.5 * (
+                        1 + np.cos(np.deg2rad(self.ground_contact_angle)))
         
         """
         Indirect solar area - area that can see the ground
         """
         if self.orientation == "horizontal":
-            indirect_solar_area += 2 * self.length_outer * self.radius_outer
+            indirect_solar_area += 2 * self.length_outer * self.radius_outer * 0.5 * (
+                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
 
             if self.endcap_type == "flat":
-                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
+                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) 
             
             elif self.endcap_type == "hemisphere":
-                indirect_solar_area += 4 * np.pi * np.power(self.radius_outer, 2)
+                indirect_solar_area += 4 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
+                    1 + np.cos(np.deg2rad(self.ground_contact_angle)))
         
         elif self.orientation == "vertical":
-            indirect_solar_area += 2 * self.length_outer * self.radius_outer
+
+            if self.groundlevel == None:
+                indirect_solar_area += 2 * self.length_outer * self.radius_outer
+            elif self.groundlevel.habitat_axis_height < self.length_outer:
+                indirect_solar_area += 2 * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer
 
             if self.endcap_type == "flat":
                 pass
 
             elif self.endcap_type == "hemisphere":
-                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
+                if self.groundlevel.habitat_axis_height < self.length_outer:
+                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
+                elif (self.groundlevel.habitat_axis_height - self.length_outer) < self.radius_outer:
+                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) * (
+                        self.groundlevel.habitat_axis_height - self.length_outer)
         
         return(direct_solar_area, indirect_solar_area)
 
@@ -647,8 +667,89 @@ class Habitat:
         # A negative sign is used for consistency with convention that +ve Q = heat loss
         return(Q_solar_indirect)
 
+    def conductive_loss_horizontal_cylinder_steady(self, T_wall, T_ground, k_ground, R_wall):
+        """
+        Calculate the conductive loss from a horizontal cylinder in contact with the ground, steady-state solution
+        
+        Uses formulae from [1] for fully buried.
+        Uses formulae from [9] and [10] for partially buried
 
-    
+        Args:
+            T_wall (float):         temperature of the outer wall (K)
+            T_ground (float):       temperature of the far-field ground (K)
+            k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
+            R_wall (float):         thermal resistance of the entire wall, required for Biot number. K/W
+        """
+        buried_depth = -self.groundlevel.habitat_axis_height
+        depth_radius = buried_depth / self.radius_outer
 
+        if self.groundlevel == None:
+            return(0)
+        if self.groundlevel.habitat_axis_height > self.radius_outer:
+            # Habitat is entirely above the ground
+            return (0)
+        
+        elif self.groundlevel.habitat_axis_height < (-self.radius_outer):
+            # Habitat is entirely below the ground - use formula from [1] (and [9] if shallow buried)
+            
+            if depth_radius > 3:
+                # Formula (1) from Table 3.5 in [1]
+                S = 2 * np.pi * self.length_outer / np.log(4 * buried_depth / self.radius_outer)
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+
+            else:
+                # Formulae 2-5 from [9]
+                U_wall = 1 / (R_wall * 2 * np.pi * self.length_outer * self.radius_outer)
+                Bi = U_wall * self.radius_outer / k_ground
+                alpha_0 = np.log(depth_radius + np.sqrt(np.power(depth_radius, 2) - 1))
+
+                U = Bi * (k_ground / self.radius_outer) / np.sqrt(
+                    1 + np.power(Bi * alpha_0, 2) + (2 * Bi * alpha_0 / np.tanh(alpha_0)))
+                
+                Q_ground = U * (2 * np.pi * self.length_outer * self.radius_outer) * (T_wall - T_ground)
+
+        
+        else:
+            # Habitat is partially buried
+            # Use formulae from [9] and [10]
+
+            U_wall = 1 / (R_wall * 2 * np.pi * self.length_outer * self.radius_outer)
+
+            Bi = U_wall * self.radius_outer / k_ground
+
+            theta_b = np.arccos(-self.habitat.habitat_axis_height)
+
+            C1 = np.sqrt(1 - np.power(depth_radius, 2))
+            C2 = depth_radius + (C1 / (Bi * theta_b))
+
+            if C2 > 1:
+                Nu = 2 / (theta_b * (np.pi - theta_b)) * C1 / np.sqrt(np.power(C2, 2) - 1) * (
+                np.pi/2 - np.arctan(np.sqrt((C2 + 1) / (C2 - 1)) * np.tan(theta_b / 2)))
+            elif C2 <= 1:
+                Nu = 1 / (theta_b * (np.pi - theta_b)) * C1 / np.sqrt(1 - np.power(C2, 2)) * np.log(
+                (np.tan(theta_b / 2) + np.sqrt((1 - C2) / (1 + C2))) / 
+                (np.tan(theta_b / 2) - np.sqrt((1 - C2) / (1 + C2))))
+            
+            U = Nu * k_ground / self.radius_outer
+
+            Q_ground = U * (2 * np.pi * self.length_outer * self.radius_outer * (
+                1 - (theta_b / np.pi))) * (T_wall - T_ground)
+        
+        return(Q_ground)
+
+    def conductive_loss_vertical_cylinder_steady(self, T_wall, T_ground, k_ground):
+        """
+        Calculate the conductive loss from a vertical cylinder in contact with the ground, steady-state solution
+        
+        Uses formulae from [1] for fully buried.
+        Uses formulae from [9] and [10] for partially buried
+
+        Args:
+            T_wall (float):         temperature of the outer wall (K)
+            T_ground (float):       temperature of the far-field ground (K)
+            k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
+            R_wall (float):         thermal resistance of the entire wall, required for Biot number. K/W
+        """
 
 
