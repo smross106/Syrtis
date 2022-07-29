@@ -3,7 +3,7 @@ Top-level object and tools for the whole Habitat, composed of individual Shells
 
 References:
 
- - [1] - Y Cengel, Heat Transfer
+ - [1] - Y Cengel, Heat Transfer 2nd edition
  - [2] - Sky temperature modelisation and applications in building simulation, Adelard et al 1998
  - [3] - Long-wave  radiation from clear skies, Swinbank 1963
  - [4] - Radiation View Factors, http://webserver.dmt.upm.es/~isidoro/tc3/Radiation%20View%20factors.pdf
@@ -13,8 +13,10 @@ References:
  - [8] - Thermal Spreading Resistance of Arbitrary-Shape Heat Sources on a Half-Space: A Unified Approach, Sadeghi et al 2010
  - [9] - Heat transfer from partially buried pipes, Morud & Simonsen 2007
  - [10]- Proposed OHTC Formula for Subsea Pipelines Considering Thermal Conductivities of Multi-Layered Soils, Park et al 2018
+ - [11]- Heat Transfer, J P Holman 10th Edition
 """
 
+from unittest.mock import NonCallableMagicMock
 import numpy as np
 from numbers import Number
 
@@ -680,8 +682,6 @@ class Habitat:
             k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
             R_wall (float):         thermal resistance of the entire wall, required for Biot number. K/W
         """
-        buried_depth = -self.groundlevel.habitat_axis_height
-        depth_radius = buried_depth / self.radius_outer
 
         if self.groundlevel == None:
             return(0)
@@ -691,6 +691,8 @@ class Habitat:
         
         elif self.groundlevel.habitat_axis_height < (-self.radius_outer):
             # Habitat is entirely below the ground - use formula from [1] (and [9] if shallow buried)
+            buried_depth = -self.groundlevel.habitat_axis_height
+            depth_radius = buried_depth / self.radius_outer
             
             if depth_radius > 3:
                 # Formula (1) from Table 3.5 in [1]
@@ -713,6 +715,9 @@ class Habitat:
         else:
             # Habitat is partially buried
             # Use formulae from [9] and [10]
+
+            buried_depth = -self.groundlevel.habitat_axis_height
+            depth_radius = buried_depth / self.radius_outer
 
             U_wall = 1 / (R_wall * 2 * np.pi * self.length_outer * self.radius_outer)
 
@@ -742,14 +747,151 @@ class Habitat:
         """
         Calculate the conductive loss from a vertical cylinder in contact with the ground, steady-state solution
         
-        Uses formulae from [1] for fully buried.
-        Uses formulae from [9] and [10] for partially buried
+        Uses formulae from [1] for partially buried, and for fully buried with a correction term
 
         Args:
             T_wall (float):         temperature of the outer wall (K)
             T_ground (float):       temperature of the far-field ground (K)
             k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
-            R_wall (float):         thermal resistance of the entire wall, required for Biot number. K/W
         """
 
+        if self.groundlevel == None:
+            return(0)
+        
+        elif self.groundlevel.habitat_axis_height > 0:
+            return (0)
 
+        if self.groundlevel.habitat_axis_height <= (-self.length_outer):
+            # Habitat is partially below 
+            buried_depth = -self.groundlevel.habitat_axis_height
+
+            S = 2 * np.pi * buried_depth / np.log(2 * buried_depth / self.radius_outer)
+
+            Q_ground = k_ground * S * (T_wall - T_ground)
+
+        elif self.groundlevel.habitat_axis_height > (-self.length_outer):
+            # Habitat is entirely below ground
+            buried_depth = -self.groundlevel.habitat_axis_height
+
+            S_spread = 2 * np.pi * buried_depth / np.log(2 * buried_depth / self.radius_outer)
+            R_spread = 1 / (k_ground * S_spread)
+
+            R_overburden = abs(buried_depth - self.length_outer) / (k_ground * self.radius_outer * 2)
+
+            R = R_spread + R_overburden
+
+            Q_ground = (T_wall - T_ground) / R
+
+        
+        return(Q_ground)
+
+    def conductive_loss_hemisphere_steady(self, T_wall, T_ground, k_ground):
+        """
+        Calculate the conductive loss from a sphere, steady-state solution. Used for spherical endcaps
+        
+        Uses formula from [1]
+
+        Args:
+            T_wall (float):         temperature of the outer wall (K)
+            T_ground (float):       temperature of the far-field ground (K)
+            k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
+        """
+        if self.groundlevel == None:
+            return(0)
+        
+        if self.orientation == "horizontal":
+            if self.groundlevel.habitat_axis_height > self.radius_outer:
+                return (0)
+            else:
+                buried_depth = -self.groundlevel.habitat_axis_height
+
+                S = 4 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+        
+        elif self.orientation == "vertical":
+            if self.groundlevel.habitat_axis_height > self.radius_outer:
+                return(0)
+            elif self.groundlevel.habitat_axis_height < -self.length_outer:
+                # Bottom hemisphere only - assume the heat flux is half that of a sphere at equivalent depth
+                buried_depth = -self.groundlevel.habitat_axis_height
+
+                S = 2 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+
+            elif self.groundlevel.habitat_axis_height > -self.length_outer:
+                # Both hemisphere are partially buried
+                # As a very janky approximation, assume this is equal to a sphere with centre at the mid-length
+                equiv_buried_depth = -self.groundlevel.habitat_axis_height - (self.length_outer / 2)
+
+                S = 4 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * equiv_buried_depth))
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+
+
+        return(Q_ground)
+
+    def conductive_loss_disc_steady(self, T_wall, T_ground, k_ground):
+        """
+        Calculate the conductive loss from a disc in various orientations, steady-state solution. Used for flat endcaps
+        
+        Uses formula from [1]
+
+        Args:
+            T_wall (float):         temperature of the outer wall (K)
+            T_ground (float):       temperature of the far-field ground (K)
+            k_ground (float):       thermal conductivity of the far-field ground (W/m/K)
+        """
+
+        if self.groundlevel == None:
+            return(0)
+        
+        elif self.orientation == "horizontal":
+            if self.groundlevel.habitat_axis_height > self.radius_outer:
+                # Habitat is entirely above the ground
+                return (0)
+            else:
+                print("Conduction loss from disc: flux patterns assumed to be the same as a sphere, with reduced area")
+                buried_depth = -self.groundlevel.habitat_axis_height
+
+                S = 2 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+        
+        elif self.orientation == "vertical":
+            if self.groundlevel.habitat_axis_height > 0:
+                # Habitat is entirely above the ground
+                return (0)
+            
+            elif self.groundlevel.habitat_axis_height == 0:
+                # Disc is resting on the surface
+                S = 4 * self.radius_outer
+
+                Q_ground = k_ground * S * (T_wall - T_ground)
+            
+            elif self.groundlevel.habitat_axis_height > -self.length:
+                # Just the bottom disc 
+                # Use Equation from Table 3-1 in [11], halved
+
+                buried_depth = -self.groundlevel.habitat_axis_height
+
+                S = 2 * np.pi * self.radius_outer / (
+                    0.5 * np.pi - np.arctan(self.radius_outer / (2 * buried_depth)))
+                
+                Q_ground = k_ground * S * (T_wall - T_ground)
+            
+            else:
+                # Both discs buried
+                buried_depth_lower = -self.groundlevel.habitat_axis_height
+                buried_depth_upper = -self.groundlevel.habitat_axis_height - self.length
+
+                S_lower = 2 * np.pi * self.radius_outer / (
+                    0.5 * np.pi - np.arctan(self.radius_outer / (2 * buried_depth_lower)))
+                
+                S_upper = 2 * np.pi * self.radius_outer / (
+                    0.5 * np.pi - np.arctan(self.radius_outer / (2 * buried_depth_upper)))
+
+                Q_ground = k_ground * (S_lower + S_upper) * (T_wall - T_ground)
+
+        return(Q_ground) 
