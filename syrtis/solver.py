@@ -20,6 +20,12 @@ class Solver:
         self.habitat = habitat
         self.configuration = configuration
     
+    def solve(self, verbose=False):
+        if self.configuration.solution_type == "constant temperature":
+            return(self.iterate_constant_temperature(verbose))
+        else:
+            print("Constant power not implemented yet")
+
     def iterate_constant_temperature(self, verbose=False):
 
         T_internal_start = self.configuration.T_habitat
@@ -56,9 +62,10 @@ class Solver:
         else:
             if verbose:
                 breakdown = self.external_losses(shell_temperatures[-1], True)
-                print(breakdown)
-                
-            return(Q_external_flux)
+                return(Q_external_flux, breakdown)
+            
+            else:
+                return(Q_external_flux)
         
         """inputs = [*[Q_internal_flux], *shell_temperatures]
 
@@ -67,16 +74,12 @@ class Solver:
         print(minimised_outputs)
 
         Q_internal_flux = minimised_outputs.x[0]
-        shell_temperatures = minimised_outputs.x[1:]"""
-
-        
-
-        
+        shell_temperatures = minimised_outputs.x[1:]
 
         checked_shell_temperatures = self.conduction_temperatures(shell_temperatures, breakdown["Power loss"])
         print(checked_shell_temperatures)
 
-        return(Q_internal_flux)
+        return(Q_internal_flux)"""
     
     def verify_temperatures(self, shell_temperatures):
         """
@@ -275,7 +278,8 @@ class Solver:
                 "Radiative gain from sky": Q_rad_sky_in,
                 "Radiative gain from ground": Q_rad_ground_in,
                 "Direct solar gain": Q_solar_direct,
-                "Reflected solar gain": Q_solar_indirect
+                "Reflected solar gain": Q_solar_indirect,
+                "Conduction loss to ground": Q_conduction
             }
             return(reporting_dict)
         else:

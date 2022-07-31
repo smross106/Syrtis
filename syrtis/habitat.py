@@ -43,8 +43,7 @@ class Habitat:
     def __init__(self, orientation, length, endcap_type):
         assert orientation == "horizontal" or orientation == "vertical", "'orientation' must be either 'horizontal' or 'vertical'"
 
-        assert isinstance(length, Number), "Habitat 'length' must be a numerical value"
-        assert length > 0, "Habitat 'length' must be a positive value"
+        assert is_numeric(length, not_negative=True), "Habitat 'length' must be a positive numerical value"
 
         assert endcap_type in endcap_types, "'endcap_type' must be a valid keyword"
 

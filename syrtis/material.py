@@ -1,7 +1,5 @@
-
-
-from numbers import Number
 import numpy as np
+from syrtis.tools import *
 
 class Material:
     """
@@ -21,13 +19,13 @@ class Solid(Material):
         emit (float):       Emissivity, between 0 and 1. Optional, defaults equal to absorbivity
         transmit (float):   Transmissivity, between 0 and 1, Optional, defaults to zero
     """
-    def __init__(self, name, k, rho, cp, absorb, emit=-1,  transmit=0):
-        assert isinstance(k, Number) and k > 0,   "Material 'k' must be a positive numerical value"
-        assert isinstance(rho, Number) and rho > 0,   "Material 'rho' must be a positive numerical value"
-        assert isinstance(cp, Number) and cp > 0, "Material 'cp' must be a positive numerical value"
-        assert isinstance(absorb, Number) and absorb >= 0 and absorb <= 1, "Material 'absorb' must be between 0 and 1"
-        assert isinstance(emit, Number) and ((emit >= 0 and emit <= 1) or emit == -1), "Material 'emit' must be between 0 and 1"
-        assert isinstance(transmit, Number) and transmit >= 0 and transmit <= 1, "Material 'alpha' must be between 0 and 1"
+    def __init__(self, name, k, rho, cp, absorb, emit=0,  transmit=0):
+        assert is_numeric(k, positive=True),   "Material 'k' must be a positive numerical value"
+        assert is_numeric(rho, positive=True),   "Material 'rho' must be a positive numerical value"
+        assert is_numeric(cp, positive=True), "Material 'cp' must be a positive numerical value"
+        assert is_numeric(absorb, unit=True), "Material 'absorb' must be between 0 and 1"
+        assert is_numeric(emit, unit=True), "Material 'emit' must be between 0 and 1"
+        assert is_numeric(transmit, unit=True), "Material 'alpha' must be between 0 and 1"
 
         self.name = name
         self.k = k
@@ -35,7 +33,7 @@ class Solid(Material):
         self.cp = cp
         self.absorb = absorb
 
-        if emit == -1:
+        if emit == 0:
             self.emit = self.absorb
         else:
             self.emit = emit
@@ -60,18 +58,18 @@ class ConstrainedIdealGas(Material):
         beta (float):   Thermal expansion coefficient (1/K) - optional, set to 1/T if left blank
     """
     def __init__(self, name, p, M, Pr, mu, cp, k, T=0, beta=0):
-        assert isinstance(p, Number) and M > 0,     "Material 'p' must be a positive numerical value"
-        assert isinstance(M, Number) and M > 0,     "Material 'M' must be a positive numerical value"
-        assert isinstance(Pr, Number) and Pr > 0,   "Material 'Pr' must be a positive numerical value"
-        assert isinstance(mu, Number) and mu > 0,   "Material 'mu' must be a positive numerical value"
-        assert isinstance(cp, Number) and cp > 0,   "Material 'cp' must be a positive numerical value"
-        assert isinstance(k, Number) and k > 0,     "Material 'k' must be a positive numerical value"
+        assert is_numeric(p, positive=True),     "Material 'p' must be a positive numerical value"
+        assert is_numeric(M, positive=True),     "Material 'M' must be a positive numerical value"
+        assert is_numeric(Pr, positive=True),   "Material 'Pr' must be a positive numerical value"
+        assert is_numeric(mu, positive=True),   "Material 'mu' must be a positive numerical value"
+        assert is_numeric(cp, positive=True),   "Material 'cp' must be a positive numerical value"
+        assert is_numeric(k, positive=True),     "Material 'k' must be a positive numerical value"
 
         if beta != 0:
-            assert isinstance(beta, Number) and beta > 0,   "Material 'beta' must be a positive numerical value"
+            assert is_numeric(beta, positive=True),   "Material 'beta' must be a positive numerical value"
 
         if T != 0:
-            assert isinstance(T, Number) and T > 0,   "Material 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Material 'T' must be a positive numerical value"
 
         self.name = name
         self._p = p
@@ -106,7 +104,7 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
         
         rho = self._p / ((8314 / self._M) * T) 
 
@@ -123,7 +121,7 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
 
         beta = 1/T
 
@@ -140,7 +138,7 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
 
         return(self._mu)
 
@@ -155,7 +153,7 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
 
         return(self._Pr)
     
@@ -170,7 +168,7 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
 
         return(self._k)
     
@@ -185,10 +183,10 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T = self._T
         else:
-            assert isinstance(T, Number) and T > 0,   "Input 'T' must be a positive numerical value"
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
         
-        assert isinstance(L, Number) and L > 0,   "Input 'L' must be a positive numerical value"
-        assert isinstance(v, Number) and v > 0,   "Input 'v' must be a positive numerical value"
+        assert is_numeric(L, positive=True),   "Input 'L' must be a positive numerical value"
+        assert is_numeric(v, positive=True),   "Input 'v' must be a positive numerical value"
 
         Re = self.rho(T) * v * L / self.mu(T)
 
@@ -204,12 +202,12 @@ class ConstrainedIdealGas(Material):
         if self.input_T == False:
             T_avg = self._T
         else:
-            assert isinstance(T_avg, Number) and T_avg > 0,   "Input 'T_avg' must be a positive numerical value"
+            assert is_numeric(T_avg, positive=True),    "Input 'T_avg' must be a positive numerical value"
 
-        assert isinstance(T_delta, Number), "Input 'T_delta' must be a numerial value"
+        assert is_numeric(T_delta, positive=True),      "Input 'T_delta' must be a numerial value"
 
-        assert isinstance(g, Number) and g > 0,   "Input 'g' must be a positive numerical value"
-        assert isinstance(length, Number) and length > 0,   "Material 'T' must be a positive numerical value"
+        assert is_numeric(g, positive=True),            "Input 'g' must be a positive numerical value"
+        assert is_numeric(length, positive=True),       "Input 'length' must be a positive numerical value"
 
         Ra = ((g * np.power(length, 3) * self.beta(T_avg) * abs(T_delta) * np.power(self.rho(T_avg), 2)) 
         / np.power(self.mu(T_avg), 2))

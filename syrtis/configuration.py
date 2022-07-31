@@ -4,6 +4,7 @@ Stores the Configuration for a given simulation: habitat heat loading and extern
 
 from syrtis.material import *
 
+
 solution_types = ["constant power", "constant temperature"]
 air_directions = ["axial", "cross"]
 
@@ -41,7 +42,7 @@ class Configuration:
 
         assert air_direction in air_directions, "Configuration 'air_direction' must be a valid keyword"
 
-        assert isinstance(albedo_ground, Number) and albedo_ground >= 0 and albedo_ground <= 1, "Configuration 'albedo_ground' must be between 0 and 1"
+        assert is_numeric(albedo_ground, unit=True), "Configuration 'albedo_ground' must be between 0 and 1"
 
         self.name = name
         self.solution_type = solution_type

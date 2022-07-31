@@ -39,13 +39,11 @@ class StaticShell(Shell):
 
         assert type(material) in material_classes, "'material' input is not valid Material-inherited object"
 
-        assert isinstance(radius_inner, Number), "Shell 'internal_radius' must be a numerical value"
-        assert radius_inner >= 0, "Shell 'internal_radius' must be a positive value"
+        assert is_numeric(radius_inner, not_negative=True), "Shell 'internal_radius' must be a positive numerical value"
 
-        assert isinstance(thickness, Number), "Shell 'thickness' must be a numerical value"
-        assert thickness > 0, "Shell 'thickness' must be a positive value"
+        assert is_numeric(thickness, positive=True), "Shell 'thickness' must be a positive numerical value"
 
-        assert isinstance(length, Number), "Shell 'length' must be a numerical value"
+        assert is_numeric(length, not_negative=True), "Shell 'length' must be a positive numerical value"
 
         self.orientation = orientation
         self.material = material
