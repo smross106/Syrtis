@@ -51,6 +51,8 @@ class ConfigurationManager(SolverManager):
 
         each_configuration_inputs = list(product(*iterations_values))
 
+        print(each_configuration_inputs, inputs_keys)
+
         self.each_configuration_inputs_dicts = []
         
         for config_input in each_configuration_inputs:
@@ -103,7 +105,9 @@ class ConfigurationManager(SolverManager):
             
             if verbose:
                 heat_loss, report = solver.solve(verbose)
+
                 heat_losses.append(heat_loss)
+
                 reports.append(report)
             
             else:
@@ -111,7 +115,7 @@ class ConfigurationManager(SolverManager):
                 heat_losses.append(heat_loss)
         
         if verbose:
-            return(self.each_configuration_inputs_dicts, heat_losses, reports)
+            return(self.each_configuration_inputs_dicts, reports, reports)
         else:
             return(self.each_configuration_inputs_dicts, heat_losses)
 

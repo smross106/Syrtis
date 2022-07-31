@@ -36,7 +36,7 @@ class Solver:
 
         current_error = Q_internal_flux
 
-        cutoff_ratio = 1e-4
+        cutoff_ratio = 1e-10
         target_iterations = 1500
 
         iterations = 0
@@ -62,6 +62,7 @@ class Solver:
         else:
             if verbose:
                 breakdown = self.external_losses(shell_temperatures[-1], True)
+
                 return(Q_external_flux, breakdown)
             
             else:

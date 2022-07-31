@@ -204,7 +204,7 @@ class ConstrainedIdealGas(Material):
         else:
             assert is_numeric(T_avg, positive=True),    "Input 'T_avg' must be a positive numerical value"
 
-        assert is_numeric(T_delta, positive=True),      "Input 'T_delta' must be a numerial value"
+        assert is_numeric(T_delta),      "Input 'T_delta' must be a numerial value"
 
         assert is_numeric(g, positive=True),            "Input 'g' must be a positive numerical value"
         assert is_numeric(length, positive=True),       "Input 'length' must be a positive numerical value"
