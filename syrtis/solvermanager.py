@@ -4,6 +4,7 @@ Object for sweeping through different parameters in the Solver
 """
 from itertools import product
 import numpy as np
+import copy
 
 from syrtis.configuration import Configuration
 from syrtis.solver import Solver
@@ -51,12 +52,11 @@ class ConfigurationManager(SolverManager):
 
         each_configuration_inputs = list(product(*iterations_values))
 
-        print(each_configuration_inputs, inputs_keys)
 
         self.each_configuration_inputs_dicts = []
         
         for config_input in each_configuration_inputs:
-            input_dict = self.configuration_baseline.__dict__
+            input_dict = copy.deepcopy(self.configuration_baseline.__dict__)
 
             for input_index, input in enumerate(config_input):
                 input_dict[inputs_keys[input_index]] = input
