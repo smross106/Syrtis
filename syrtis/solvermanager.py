@@ -112,10 +112,11 @@ class ConfigurationManager(SolverManager):
             
             else:
                 heat_loss = solver.solve()
+                
                 heat_losses.append(heat_loss)
         
         if verbose:
-            return(self.each_configuration_inputs_dicts, reports, reports)
+            return(self.each_configuration_inputs_dicts, heat_losses, reports)
         else:
             return(self.each_configuration_inputs_dicts, heat_losses)
 

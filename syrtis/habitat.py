@@ -802,7 +802,7 @@ class Habitat:
         """
         Calculate the conductive loss from a sphere, steady-state solution. Used for spherical endcaps
         
-        Uses formula from [1]
+        Uses equation 3.1.7 from [7]
 
         Args:
             T_wall (float):         temperature of the outer wall (K)
@@ -818,7 +818,7 @@ class Habitat:
             else:
                 buried_depth = -self.groundlevel.habitat_axis_height
 
-                S = 4 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+                S = 4 * np.pi * self.radius_outer / (1 + 1 / (buried_depth/self.radius_outer + 1))
 
                 Q_ground = k_ground * S * (T_wall - T_ground)
         
@@ -829,7 +829,7 @@ class Habitat:
                 # Bottom hemisphere only - assume the heat flux is half that of a sphere at equivalent depth
                 buried_depth = -self.groundlevel.habitat_axis_height
 
-                S = 2 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+                S = 2 * np.pi * self.radius_outer / (1 + 1 / (buried_depth/self.radius_outer + 1))
 
                 Q_ground = k_ground * S * (T_wall - T_ground)
 
@@ -838,7 +838,7 @@ class Habitat:
                 # As a very janky approximation, assume this is equal to a sphere with centre at the mid-length
                 equiv_buried_depth = -self.groundlevel.habitat_axis_height - (self.length_outer / 2)
 
-                S = 4 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * equiv_buried_depth))
+                S = 4 * np.pi * self.radius_outer / (1 + 1 / (equiv_buried_depth/self.radius_outer + 1))
 
                 Q_ground = k_ground * S * (T_wall - T_ground)
 
@@ -868,7 +868,7 @@ class Habitat:
                 #print("Conduction loss from disc: flux patterns assumed to be the same as a sphere, with reduced area")
                 buried_depth = -self.groundlevel.habitat_axis_height
 
-                S = 2 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))
+                S = 2 * np.pi * self.radius_outer / (1 + 1 / (buried_depth/self.radius_outer + 1))
 
                 Q_ground = k_ground * S * (T_wall - T_ground)
         
