@@ -36,8 +36,8 @@ class Solver:
 
         current_error = Q_internal_flux
 
-        cutoff_ratio = 1e-10
-        target_iterations = 1500
+        cutoff_ratio = 1e-5
+        target_iterations = 1750
 
         iterations = 0
 

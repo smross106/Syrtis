@@ -61,13 +61,13 @@ class Habitat:
 
         self.verified = False
     
-    def create_static_shell(self, material, thickness, thermal_resistance=0):
+    def create_static_shell(self, material, thickness, thermal_resistance=0, parallel_thermal_resistance=0):
         """
         Create a StaticShell that conforms around the outside of the outermost one
         """
         
         new_shell = StaticShell(self.orientation, material, self.radius_outer, 
-        thickness, self.length, False, thermal_resistance)
+        thickness, self.length, False, thermal_resistance, parallel_thermal_resistance)
 
         self.radius_outer += thickness
         self.verified = False
@@ -190,7 +190,7 @@ class Habitat:
             
             elif self.endcap_type == "flat":
                 self.exposed_area_endcap = 2 * np.power(self.radius_outer, 2) * (np.pi - 
-                np.deg2rad(self.ground_contact_angle) + 0.5 * np.c(np.deg2rad(2 * self.ground_contact_angle)))
+                np.deg2rad(self.ground_contact_angle) + 0.5 * np.cos(np.deg2rad(2 * self.ground_contact_angle)))
         
         elif self.orientation == "vertical":
             if self.endcap_type == "hemisphere":
@@ -736,7 +736,7 @@ class Habitat:
 
             Bi = U_wall * self.radius_outer / k_ground
 
-            theta_b = np.arccos(-self.habitat.habitat_axis_height)
+            theta_b = np.arccos(depth_radius)
 
             C1 = np.sqrt(1 - np.power(depth_radius, 2))
             C2 = depth_radius + (C1 / (Bi * theta_b))
@@ -744,7 +744,7 @@ class Habitat:
             if C2 > 1:
                 Nu = 2 / (theta_b * (np.pi - theta_b)) * C1 / np.sqrt(np.power(C2, 2) - 1) * (
                 np.pi/2 - np.arctan(np.sqrt((C2 + 1) / (C2 - 1)) * np.tan(theta_b / 2)))
-            elif C2 <= 1:
+            else:# C2 <= 1:
                 Nu = 1 / (theta_b * (np.pi - theta_b)) * C1 / np.sqrt(1 - np.power(C2, 2)) * np.log(
                 (np.tan(theta_b / 2) + np.sqrt((1 - C2) / (1 + C2))) / 
                 (np.tan(theta_b / 2) - np.sqrt((1 - C2) / (1 + C2))))
@@ -865,7 +865,7 @@ class Habitat:
                 # Habitat is entirely above the ground
                 return (0)
             else:
-                print("Conduction loss from disc: flux patterns assumed to be the same as a sphere, with reduced area")
+                #print("Conduction loss from disc: flux patterns assumed to be the same as a sphere, with reduced area")
                 buried_depth = -self.groundlevel.habitat_axis_height
 
                 S = 2 * np.pi * self.radius_outer / (1 - (self.radius_outer)/(2 * buried_depth))

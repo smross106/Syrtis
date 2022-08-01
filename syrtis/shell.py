@@ -33,7 +33,8 @@ class StaticShell(Shell):
         thermal_resistance (float): an override for simple calculation of the Shell's thermal resistance. Ignored when not a positive number
     """
 
-    def __init__(self, orientation, material, radius_inner, thickness, length, external=False, thermal_resistance=0):
+    def __init__(self, orientation, material, radius_inner, thickness, length, 
+    external=False, thermal_resistance=0, parallel_thermal_resistance=0):
 
         assert orientation == "horizontal" or orientation == "vertical", "'orientation' must be either 'horizontal' or 'vertical'"
 
@@ -57,11 +58,11 @@ class StaticShell(Shell):
         self.external = external
 
         if thermal_resistance == 0:
-            self.thermal_resistance_constant = False
-            self.thermal_resistance = -1
+            self.thermal_resistance_constant = 0
         else:
-            self.thermal_resistance_constant = True
-            self.thermal_resistance = thermal_resistance
+            self.thermal_resistance_constant = thermal_resistance
+        
+        self.parallel_thermal_resistance = parallel_thermal_resistance
         
     def __le__(self, other):
         if type(other) != StaticShell: raise TypeError
@@ -102,17 +103,25 @@ class StaticShell(Shell):
         Calculates the thermal resistance of the Shell
         Determines which equation to use and uses it
         """
-        if self.thermal_resistance_constant == True:
-            pass
+        if self.thermal_resistance_constant != 0:
+            thermal_resistance = self.thermal_resistance_constant
             
         elif self.radius_inner == 0:
-            self.thermal_resistance = 0
+            thermal_resistance = 0
 
         elif type(self.material) == Solid:
-            self.thermal_resistance = self.thermal_resistance_solid()
+            thermal_resistance = self.thermal_resistance_solid()
         
         elif type(self.material) == ConstrainedIdealGas:
-            self.thermal_resistance = self.thermal_resistance_annulus(T_avg, T_delta, g)
+            thermal_resistance = self.thermal_resistance_annulus(T_avg, T_delta, g)
+        
+        if self.parallel_thermal_resistance == 0:
+            self.thermal_resistance = thermal_resistance
+        else:
+            if thermal_resistance == 0:
+                self.thermal_resistance = thermal_resistance
+            else:
+                self.thermal_resistance = 1 / ((1 / thermal_resistance) + (1 / self.parallel_thermal_resistance))
             
 
     def thermal_resistance_solid(self):
