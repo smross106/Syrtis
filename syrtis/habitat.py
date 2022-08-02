@@ -167,7 +167,7 @@ class Habitat:
             
             else:
                 self.ground_contact_angle = np.rad2deg(np.arccos(
-                    self.groundlevel.habitat_axis_height / self.radius_outer))
+                    (self.radius_outer - self.groundlevel.habitat_axis_height) / self.radius_outer))
 
         
         self.exposed_convective_area()
@@ -246,8 +246,8 @@ class Habitat:
             # Area of cylinder projected to the plane perpendicular to the Sun
             # Two components are axial and radial-ish directions
             direct_solar_area += 2 * self.length_outer * self.radius_outer * (
-                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) 
-                + np.sin(solar_azimuth_rad)) * 0.5 * (1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) * 0.5 * (1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+                + np.sin(solar_azimuth_rad)) 
             
             if self.endcap_type == "flat":
                 direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
@@ -286,11 +286,12 @@ class Habitat:
         Indirect solar area - area that can see the ground
         """
         if self.orientation == "horizontal":
-            indirect_solar_area += 2 * self.length_outer * self.radius_outer * 0.5 * (
+            indirect_solar_area += 2 * np.pi * self.length_outer * self.radius_outer * 0.5 * (
                 1 + np.cos(np.deg2rad(self.ground_contact_angle)))
 
             if self.endcap_type == "flat":
-                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) 
+                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
+                    1 + np.cos(np.deg2rad(self.ground_contact_angle)))
             
             elif self.endcap_type == "hemisphere":
                 indirect_solar_area += 4 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
@@ -299,9 +300,9 @@ class Habitat:
         elif self.orientation == "vertical":
 
             if self.groundlevel == None:
-                indirect_solar_area += 2 * self.length_outer * self.radius_outer
+                indirect_solar_area += 2 * np.pi * self.length_outer * self.radius_outer
             elif self.groundlevel.habitat_axis_height < self.length_outer:
-                indirect_solar_area += 2 * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer
+                indirect_solar_area += 2 * np.pi * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer
 
             if self.endcap_type == "flat":
                 pass
