@@ -596,7 +596,7 @@ class Habitat:
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_sky
 
         # A negative sign is used for consistency with convention that +ve Q = heat loss
-        return(Q_sky)
+        return(-Q_sky)
     
     def radiative_loss_ground(self, T_wall):
         """
@@ -606,7 +606,7 @@ class Habitat:
             T_wall (float):             temperature of the wall (K)
         """
 
-        vf_ground = 1 - self.view_factor_ground()
+        vf_ground = self.view_factor_ground()
 
         Q_ground = 5.67e-8 * self._shells[-1].material.emit * np.power(T_wall, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
@@ -621,13 +621,13 @@ class Habitat:
             T_ground (float):              temperature of the ground(K)
         """
 
-        vf_ground = 1 - self.view_factor_ground()
+        vf_ground = self.view_factor_ground()
 
-        Q_ground = 5.67e-8 * self._shells[-1].material.absorb * np.power(T_ground, 4) * (
+        Q_ground_gain = 5.67e-8 * self._shells[-1].material.absorb * np.power(T_ground, 4) * (
             self.exposed_area_cylinder + self.exposed_area_endcap) * vf_ground
 
         # A negative sign is used for consistency with convention that +ve Q = heat loss
-        return(-Q_ground)
+        return(-Q_ground_gain)
 
     def solar_gain_direct(self, solar_altitude, solar_azimuth, solar_intensity):
         """
@@ -666,7 +666,7 @@ class Habitat:
             Q_solar_indirect = solar_intensity * albedo_ground * indirect_lit_area * self._shells[-1].material.absorb
         
         # A negative sign is used for consistency with convention that +ve Q = heat loss
-        return(Q_solar_indirect)
+        return(-Q_solar_indirect)
 
     def conductive_loss_fixed_resistance(self, T_wall, T_ground, R_ground):
         """

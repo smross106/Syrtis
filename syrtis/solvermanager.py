@@ -92,8 +92,7 @@ class ConfigurationManager(SolverManager):
         """
 
         heat_losses = []
-        if verbose:
-            reports = []
+        reports = []
         
         for configuration_index, configuration in enumerate(self.configurations):
             self.habitat.verify_geometry()
@@ -104,7 +103,7 @@ class ConfigurationManager(SolverManager):
             
             
             if verbose:
-                heat_loss, report = solver.solve(verbose)
+                heat_loss, report = solver.solve(verbose=True)
 
                 heat_losses.append(heat_loss)
 

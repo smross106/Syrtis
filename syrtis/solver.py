@@ -22,7 +22,12 @@ class Solver:
     
     def solve(self, verbose=False):
         if self.configuration.solution_type == "constant temperature":
-            return(self.iterate_constant_temperature(verbose))
+            if verbose:
+                heat, report = self.iterate_constant_temperature(verbose=True)
+                return(heat, report)
+            else:
+                heat = self.iterate_constant_temperature(verbose=False)
+                return(heat, report)
         else:
             print("Constant power not implemented yet")
 
@@ -61,9 +66,9 @@ class Solver:
             return(np.nan)
         else:
             if verbose:
-                breakdown = self.external_losses(shell_temperatures[-1], True)
+                report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
 
-                return(Q_external_flux, breakdown)
+                return(Q_external_flux, report)
             
             else:
                 return(Q_external_flux)
@@ -179,7 +184,7 @@ class Solver:
         
         return(updated_shell_temperatures, total_resistance)
     
-    def external_losses(self, wall_temperature, thermal_resistance_wall, report_full=False):
+    def external_losses(self, wall_temperature, thermal_resistance_wall, verbose=False):
 
         #Q_wall = self.habitat.placeholder_convective_loss(wall_temperature, self.configuration.T_air)
         Q_wall = 0
@@ -221,7 +226,7 @@ class Solver:
         Q_rad_sky_in = self.habitat.radiative_gain_sky(self.configuration.T_air)
 
         Q_rad_ground_out = self.habitat.radiative_loss_ground(wall_temperature)
-        Q_rad_ground_in = self.habitat.radiative_loss_ground(self.configuration.T_ground)
+        Q_rad_ground_in = self.habitat.radiative_gain_ground(self.configuration.T_ground)
         
         if self.configuration.solar_altitude > 0:
             Q_solar_direct = self.habitat.solar_gain_direct(self.configuration.solar_altitude,
@@ -268,7 +273,8 @@ class Solver:
         Q_solar_direct + Q_solar_indirect + 
         Q_conduction)
         
-        if report_full:
+        if verbose:
+
             reporting_dict = {
                 "Power loss": Q_total,
                 "Outer wall temperature": wall_temperature,
