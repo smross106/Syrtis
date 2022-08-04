@@ -104,7 +104,7 @@ def plot_stacked_bar(data, series_labels, category_labels=None,
                          value_format.format(h), ha="center", 
                          va="center")
 
-def plot_power_balance(heat_reports):
+def plot_power_balance(heat_reports, labels):
     """"
     
         heat_reports (list of dicts):    list of standardised reports
@@ -138,12 +138,10 @@ def plot_power_balance(heat_reports):
     loss_values = np.asarray(loss_values)
     all_keys = gain_keys + loss_keys
 
-    labels = ["a", "b"]
+    #labels = ["a", "b"]
 
     x = np.arange(len(labels))  # the label locations
     width = 0.35  # the width of the bars
-
-    print(gain_values, "\n",  loss_values)
 
     shifted=False
     
@@ -155,31 +153,41 @@ def plot_power_balance(heat_reports):
             label=all_keys[value_set], 
             bottom=cum_gain[::2])
 
+
+            for x_item in range(len(x)):
+                plt.text(x[x_item]-width, 
+                    gain_values[x_item*2,value_set]/2 + cum_gain[x_item*2], 
+                    all_keys[value_set], 
+                    va="center")
+
             cum_gain = np.add(cum_gain, gain_values[:,value_set])
+
+            
 
         elif all_keys[value_set] in loss_keys:
 
-            #if not shifted:
-            #    cum_gain = np.insert(cum_gain, 0, 0)
-            #    cum_gain = np.delete(cum_gain, -1)
-            #    shifted = True
-                
-
             offset_value_set = value_set - len(gain_keys)
-            print(loss_values[:,offset_value_set])
+            #print(loss_values[1::2,offset_value_set], cum_gain[::2])
 
             plt.bar(x+width/2, 
-            loss_values[::2,offset_value_set], 
+            loss_values[1::2,offset_value_set], 
             width, 
-            label=all_keys[offset_value_set], 
-            bottom=cum_gain[1::2])
+            label=all_keys[value_set], 
+            bottom=cum_gain[::2])
 
+            for x_item in range(len(x)):
+                plt.text(x[x_item], 
+                    loss_values[1 + x_item*2,offset_value_set]/2 + cum_gain[x_item*2], 
+                    all_keys[value_set], 
+                    va="center")
+            
             cum_gain = np.add(cum_gain, loss_values[:,offset_value_set])
+            cum_gain = np.add(cum_gain, loss_values[1:-2,offset_value_set])
+
         
-        cum_gain
-        
+    plt.xticks(x, labels)    
     
-    plt.legend()
+    plt.legend(bbox_to_anchor = (1.05, 0.6))
     
     
     

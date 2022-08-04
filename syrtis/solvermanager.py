@@ -97,7 +97,7 @@ class ConfigurationManager(SolverManager):
         for configuration_index, configuration in enumerate(self.configurations):
             self.habitat.verify_geometry()
 
-            solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]),
+            solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
                 self.habitat, configuration)
             
             

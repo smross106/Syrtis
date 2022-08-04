@@ -276,6 +276,7 @@ class Solver:
         if verbose:
 
             reporting_dict = {
+                "ID":       self.name,
                 "Total heat flux out": Q_total,
                 "Outer wall temperature": wall_temperature,
                 "Convective loss from cylinder": Q_wall,
