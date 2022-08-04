@@ -155,10 +155,11 @@ def plot_power_balance(heat_reports, labels):
 
 
             for x_item in range(len(x)):
-                plt.text(x[x_item]-width, 
-                    gain_values[x_item*2,value_set]/2 + cum_gain[x_item*2], 
-                    all_keys[value_set], 
-                    va="center")
+                if gain_values[x_item*2,value_set] != 0:
+                    plt.text(x[x_item]-width, 
+                        gain_values[x_item*2,value_set]/2 + cum_gain[x_item*2], 
+                        all_keys[value_set], 
+                        va="center")
 
             cum_gain = np.add(cum_gain, gain_values[:,value_set])
 
@@ -176,10 +177,11 @@ def plot_power_balance(heat_reports, labels):
             bottom=cum_gain[::2])
 
             for x_item in range(len(x)):
-                plt.text(x[x_item], 
-                    loss_values[1 + x_item*2,offset_value_set]/2 + cum_gain[x_item*2], 
-                    all_keys[value_set], 
-                    va="center")
+                if loss_values[1 + x_item*2,offset_value_set] != 0:
+                    plt.text(x[x_item], 
+                        loss_values[1 + x_item*2,offset_value_set]/2 + cum_gain[x_item*2], 
+                        all_keys[value_set], 
+                        va="center")
             
             cum_gain = np.add(cum_gain, loss_values[:,offset_value_set])
             cum_gain = np.add(cum_gain, loss_values[1:-2,offset_value_set])

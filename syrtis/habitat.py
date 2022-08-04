@@ -308,7 +308,9 @@ class Habitat:
                 pass
 
             elif self.endcap_type == "hemisphere":
-                if self.groundlevel.habitat_axis_height < self.length_outer:
+                if self.groundlevel == None:
+                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
+                elif self.groundlevel.habitat_axis_height < self.length_outer:
                     indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
                 elif (self.groundlevel.habitat_axis_height - self.length_outer) < self.radius_outer:
                     indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) * (
