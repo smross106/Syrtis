@@ -179,48 +179,94 @@ class Habitat:
         Find the area exposed to convective losses, endcap and cylinder.
         Called during geometry verification
         """
+
+        if self.groundlevel == None:
+            self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer
+
+            if self.endcap_type == "hemisphere":
+                self.exposed_area_endcap = 4 * np.pi * np.power(self.radius_outer, 2)
+            
+            elif self.endcap_type == "flat":
+                self.exposed_area_endcap = 2 * np.pi * np.power(self.radius_outer, 2)
         
-        if self.orientation == "horizontal":
+        elif self.groundlevel.habitat_axis_height > self.radius_outer:
+            self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer
+
+            if self.endcap_type == "hemisphere":
+                self.exposed_area_endcap = 4 * np.pi * np.power(self.radius_outer, 2)
+            
+            elif self.endcap_type == "flat":
+                self.exposed_area_endcap = 2 * np.pi * np.power(self.radius_outer, 2)
+        
+        elif (self.groundlevel.habitat_axis_height < self.radius_outer and self.groundlevel.habitat_axis_height > -self.radius_outer and 
+        self.orientation == "horizontal"):
+            # Habitat is partially below ground level, so exposed area of cylinder and endcaps are reduced
+
             self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer * 0.5 * (
                 1 + np.cos(np.deg2rad(self.ground_contact_angle)))
             
             if self.endcap_type == "hemisphere":
-                self.exposed_area_endcap = 4 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
-                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+                # Spherical cap area formula
+                self.exposed_area_endcap = 2 * np.pi * self.radius_outer * (
+                    self.radius_outer + self.groundlevel.habitat_axis_height) 
             
             elif self.endcap_type == "flat":
+                # Segment formula area formula
                 self.exposed_area_endcap = 2 * np.power(self.radius_outer, 2) * (np.pi - 
-                np.deg2rad(self.ground_contact_angle) + 0.5 * np.cos(np.deg2rad(2 * self.ground_contact_angle)))
+                    np.deg2rad(self.ground_contact_angle) + 0.5 * np.cos(np.deg2rad(2 * self.ground_contact_angle)))
         
-        elif self.orientation == "vertical":
+        elif self.groundlevel.habitat_axis_height < -self.radius_outer and self.orientation == "horizontal":
+            # The entire habitat is below ground level
+            self.exposed_area_cylinder = 0
+            self.exposed_area_endcap = 0
+            
+        elif (self.groundlevel.habitat_axis_height < self.radius_outer and self.groundlevel.habitat_axis_height > 0 and 
+        self.orientation == "vertical"):
+            # The cylinder of the habitat is above ground level but a hemsipherical endcap would be truncated
+                self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer
+
+                if self.endcap_type == "hemisphere":
+                    # One truncated cap, one full cap
+                    # Spherical cap area formulae
+                    self.exposed_area_endcap = 2 * np.pi * self.radius_outer * self.groundlevel.habitat_axis_height
+                    self.exposed_area_endcap += 2 * np.pi * np.power(self.radius_outer, 2)
+                
+                elif self.endcap_type == "flat":
+                    self.exposed_area_endcap = 2 * np.pi * np.power(self.radius_outer, 2)
+        
+        elif (self.groundlevel.habitat_axis_height < 0 and self.groundlevel.habitat_axis_height > -self.length_outer and
+            self.orientation == "vertical"):
+            # A section of the cylinder is below ground
+            self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * (
+                    self.length_outer + self.groundlevel.habitat_axis_height)
+                
             if self.endcap_type == "hemisphere":
                 self.exposed_area_endcap = 2 * np.pi * np.power(self.radius_outer, 2)
+
+            elif self.endcap_type == "flat":
+                self.exposed_area_endcap = np.pi * np.power(self.radius_outer, 2)
+        
+        elif (self.groundlevel.habitat_axis_height < -self.length_outer and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer) and
+            self.orientation == "vertical"):
+            # The whole cylinder is below ground, but a hemispherical endcap may protrude
+            self.exposed_area_cylinder = 0
+
+            if self.endcap_type == "hemisphere":
+                self.exposed_area_endcap = 2 * np.pi * self.radius_outer * (
+                    self.length_outer + self.radius_outer + self.groundlevel.habitat_axis_height)
             
             elif self.endcap_type == "flat":
-                self.exposed_area_endcap = 1 * np.pi * np.power(self.radius_outer, 2)
-            
+                self.exposed_area_endcap = 0
+        
+        elif self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer) and self.orientation == "vertical":
+            # Habitat is entirely underground
+            self.exposed_area_cylinder = 0
+            self.exposed_area_endcap = 0
 
-            if self.groundlevel == None:
-                self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * self.length_outer
-            
-            else:
-                self.exposed_area_cylinder = 2 * np.pi * self.radius_outer * (
-                    self.length_outer - self.groundlevel.habitat_axis_height)
-                
-                if self.endcap_type == "flat" and self.groundlevel.habitat_axis_height > self.length_outer:
-                    self.exposed_area_endcap = 0
-
-                elif self.endcap_type == "hemisphere" and self.groundlevel.habitat_axis_height > self.length_outer:
-                    # Using spherical cap formula
-                    if (self.groundlevel.habitat_axis_height - self.length_outer) < self.radius_outer:
-                        self.exposed_area_endcap *= (self.groundlevel.habitat_axis_height - self.length_outer)
-                    else:
-                        self.exposed_area_endcap = 0
-
-    def exposed_radiative_area(self, solar_altitude, solar_azimuth):
+    def direct_solar_area(self, solar_altitude, solar_azimuth):
         """
-        Find the area of the habitat in direct and indirect sunlight
-        Called by solar_gain_direct and solar_gain_indirect to find areas
+        Find the area of the habitat in direct sunlight
+        Called by solar_gain_direct to find areas
         
         Args:
             solar_altitude (float): vertical angle of the sun above the horizon (degrees)
@@ -230,16 +276,119 @@ class Habitat:
         solar_azimuth_rad = np.deg2rad(solar_azimuth)
 
         direct_solar_area = 0
-        indirect_solar_area = 0
 
-        if self.groundlevel != None:
+        if self.groundlevel == None:
+            if self.orientation == "horizontal":
+                direct_solar_area += 2 * self.length_outer * self.radius_outer * (
+                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) + np.sin(solar_azimuth_rad))
+                
+                if self.endcap_type == "flat":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.cos(solar_altitude_rad) * abs(np.cos(solar_azimuth_rad)))
+                
+                elif self.endcap_type == "hemisphere":
+                    # Area of hemisphere projected onto the plane perpendicular to the Sun
+                    # Two components are axial (plan view) and radial-ish (side view)
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * abs(np.cos(solar_azimuth_rad))
+
+            elif self.orientation == "vertical":
+                direct_solar_area += 2 * self.length_outer * self.radius_outer * (
+                np.cos(solar_altitude_rad)) 
+
+                if self.endcap_type == "flat":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * np.sin(solar_altitude_rad) 
+                
+                elif self.endcap_type == "hemisphere":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.sin(solar_altitude_rad) + 0.5 * np.cos(solar_altitude_rad))
+        
+        elif self.groundlevel.habitat_axis_height > self.radius_outer:
+            if self.orientation == "horizontal":
+                direct_solar_area += 2 * self.length_outer * self.radius_outer * (
+                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) + np.sin(solar_azimuth_rad))
+                
+                if self.endcap_type == "flat":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.cos(solar_altitude_rad) * abs(np.cos(solar_azimuth_rad)))
+                
+                elif self.endcap_type == "hemisphere":
+                    # Area of hemisphere projected onto the plane perpendicular to the Sun
+                    # Two components are axial (plan view) and radial-ish (side view)
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * abs(np.cos(solar_azimuth_rad))
+
+            elif self.orientation == "vertical":
+                direct_solar_area += 2 * self.length_outer * self.radius_outer * (
+                np.cos(solar_altitude_rad)) 
+
+                if self.endcap_type == "flat":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * np.sin(solar_altitude_rad) 
+                
+                elif self.endcap_type == "hemisphere":
+                    direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                        np.sin(solar_altitude_rad) + 0.5 * np.cos(solar_altitude_rad))
+        
+        elif (self.groundlevel.habitat_axis_height < self.radius_outer and self.groundlevel.habitat_axis_height > -self.radius_outer and 
+        self.orientation == "horizontal"):
+            # Habitat is partially below ground level, so exposed area of cylinder and endcaps are reduced
+            direct_solar_area += 2 * self.length_outer * self.radius_outer * (
+                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) * 0.5 * (1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+                + np.sin(solar_azimuth_rad)) 
+            
+            if self.endcap_type == "flat":
+                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                    np.cos(solar_altitude_rad) * abs(np.cos(solar_azimuth_rad))) * 0.5 * (
+                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+            
+            elif self.endcap_type == "hemisphere":
+                # Area of hemisphere projected onto the plane perpendicular to the Sun
+                # Two components are axial (plan view) and radial-ish (side view)
+                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * abs(np.cos(solar_azimuth_rad)) * 0.5 * (
+                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+        
+        elif self.groundlevel.habitat_axis_height < -self.radius_outer and self.orientation == "horizontal":
+            # Habitat is entirely below ground level
+            pass
+
+        elif (self.groundlevel.habitat_axis_height < 0 and self.groundlevel.habitat_axis_height > -self.length_outer and
+            self.orientation == "vertical"):
+            direct_solar_area += 2 * (self.length_outer + self.groundlevel.habitat_axis_height) * self.radius_outer * (
+                np.cos(solar_altitude_rad)) 
+
+            if self.endcap_type == "flat":
+                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * np.sin(solar_altitude_rad) 
+            
+            elif self.endcap_type == "hemisphere":
+                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
+                    np.sin(solar_altitude_rad) + 0.5 * np.cos(solar_altitude_rad))
+        
+        elif (self.groundlevel.habitat_axis_height < -self.length_outer and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer) and
+            self.orientation == "vertical"):
+            # The whole cylinder is below ground, but a hemispherical endcap may protrude
+            if self.endcap_type == "hemisphere":
+                direct_solar_area += np.pi * np.power(self.radius_outer * 
+                np.cos(np.arcsin((self.length_outer + self.groundlevel.habitat_axis_height)/self.radius_outer)), 2) * (
+                    np.sin(solar_altitude_rad) + 0.5 * np.cos(solar_altitude_rad))
+            
+            elif self.endcap_type == "flat":
+                pass
+        
+        elif self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer) and self.orientation == "vertical":
+            pass
+    
+        return(direct_solar_area)
+
+
+        """if self.groundlevel != None:
             if self.orientation == "horizontal" and self.groundlevel.habitat_axis_height < (-self.radius_outer):
-                return(direct_solar_area, indirect_solar_area)
+                return(direct_solar_area)
             elif self.orientation == "vertical" and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer):
-                return(direct_solar_area, indirect_solar_area)
+                return(direct_solar_area)
 
         """
-        Direct solar area - area that can see the Sun
+        #Direct solar area - area that can see the Sun
         """
 
         if self.orientation == "horizontal":
@@ -282,41 +431,29 @@ class Habitat:
                     np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * 0.5 * (
                         1 + np.cos(np.deg2rad(self.ground_contact_angle)))
         
-        """
-        Indirect solar area - area that can see the ground
-        """
-        if self.orientation == "horizontal":
-            indirect_solar_area += 2 * np.pi * self.length_outer * self.radius_outer * 0.5 * (
-                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+        return(direct_solar_area)"""
 
-            if self.endcap_type == "flat":
-                indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
-                    1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+        
+    def indirect_solar_area(self):
+        """
+        Find the area of the habitat indirect sunlight
+        Called by solar_gain_direct and solar_gain_indirect to find areas
+
+        Very similar to convective_area, except a vertically oriented Habitat with flat endcaps will not have the flat endcap counted
+        """
+        indirect_solar_area = self.exposed_area_cylinder + self.exposed_area_endcap
+
             
-            elif self.endcap_type == "hemisphere":
-                indirect_solar_area += 4 * np.pi * np.power(self.radius_outer, 2) * 0.5 * (
-                    1 + np.cos(np.deg2rad(self.ground_contact_angle)))
+        if self.orientation == "horizontal":
+            pass
+        elif self.groundlevel == None:
+            pass
+        elif (self.groundlevel.habitat_axis_height < -self.length_outer and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer) and
+            self.orientation == "vertical"):
+            # One flat endcap is above ground level but isn't visible to the surface of the ground: exclude it
+            indirect_solar_area -= np.pi * np.power(self.radius_outer, 2)
         
-        elif self.orientation == "vertical":
-
-            if self.groundlevel == None:
-                indirect_solar_area += 2 * np.pi * self.length_outer * self.radius_outer
-            elif self.groundlevel.habitat_axis_height < self.length_outer:
-                indirect_solar_area += 2 * np.pi * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer
-
-            if self.endcap_type == "flat":
-                pass
-
-            elif self.endcap_type == "hemisphere":
-                if self.groundlevel == None:
-                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
-                elif self.groundlevel.habitat_axis_height < self.length_outer:
-                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2)
-                elif (self.groundlevel.habitat_axis_height - self.length_outer) < self.radius_outer:
-                    indirect_solar_area += 2 * np.pi * np.power(self.radius_outer, 2) * (
-                        self.groundlevel.habitat_axis_height - self.length_outer)
-        
-        return(direct_solar_area, indirect_solar_area)
+        return(indirect_solar_area)
 
     def build_thermal_resistances(self, shell_temperatures, g):
         """
@@ -642,7 +779,7 @@ class Habitat:
             solar_intensity (float):power delivered by solar radiation after dust absorption, W/m2
         """
 
-        direct_lit_area, indirect_lit_area = self.exposed_radiative_area(solar_altitude, solar_azimuth)
+        direct_lit_area = self.direct_solar_area(solar_altitude, solar_azimuth)
         
         if self._shells[-1].material.transmit == 0:
             # Outer layer is opaque - all solar energy is delivered to outermost shell
@@ -662,7 +799,7 @@ class Habitat:
             albedo_ground (float):  albedo of the surface around the habitat
         """
 
-        direct_lit_area, indirect_lit_area = self.exposed_radiative_area(solar_altitude, solar_azimuth)
+        indirect_lit_area = self.indirect_solar_area()
         
         if self._shells[-1].material.transmit == 0:
             # Outer layer is opaque - all solar energy is delivered to outermost shell
