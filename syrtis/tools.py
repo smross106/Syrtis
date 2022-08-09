@@ -168,26 +168,26 @@ def plot_power_balance(heat_reports, labels):
         elif all_keys[value_set] in loss_keys:
 
             offset_value_set = value_set - len(gain_keys)
-            #print(loss_values[1::2,offset_value_set], cum_gain[::2])
 
             plt.bar(x+width/2, 
             loss_values[1::2,offset_value_set], 
             width, 
             label=all_keys[value_set], 
-            bottom=cum_gain[::2])
+            bottom=np.add(cum_gain[1::2], cum_gain[::2]))
 
             for x_item in range(len(x)):
                 if loss_values[1 + x_item*2,offset_value_set] != 0:
                     plt.text(x[x_item], 
-                        loss_values[1 + x_item*2,offset_value_set]/2 + cum_gain[x_item*2], 
+                        loss_values[1 + x_item*2,offset_value_set]/2 + np.add(cum_gain[1 + x_item*2], cum_gain[x_item*2]), 
                         all_keys[value_set], 
                         va="center")
             
             cum_gain = np.add(cum_gain, loss_values[:,offset_value_set])
-            cum_gain = np.add(cum_gain, loss_values[1:-2,offset_value_set])
 
         
-    plt.xticks(x, labels)    
+    plt.xticks(x, labels) 
+
+    plt.ylabel("Heat loss into habitat (W) - positive=loss")   
     
     plt.legend(bbox_to_anchor = (1.05, 0.6))
     
