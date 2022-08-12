@@ -6,10 +6,13 @@ References:
 
  - [1] - https://en.wikipedia.org/wiki/Thermal_resistance
  - [2] - Y Cengel, Heat Transfer
+ - [3] - Radiation View Factors, http://webserver.dmt.upm.es/~isidoro/tc3/Radiation%20View%20factors.pdf
+ - [4] - Rapid Method for Determining Concentric Cylinder Radiation View Factors, Rea 1975
 
 """
 
 from syrtis.material import *
+import numpy as np
 
 class Shell:
     """
@@ -206,9 +209,132 @@ class GroundLevel(Shell):
     """
     def __init__(self, habitat_axis_height=1e3, thermal_resistance=0):
         
-        assert isinstance(habitat_axis_height, Number), "GroundLevel 'height_below_habitat' must be a numerical value"
+        assert is_numeric(habitat_axis_height), "GroundLevel 'height_below_habitat' must be a numerical value"
 
-        assert isinstance(thermal_resistance, Number) and thermal_resistance >= 0, "GroundLevel 'thermal_resistance' must be a positive numerical value"
+        assert is_numeric(thermal_resistance, not_negative=True), "GroundLevel 'thermal_resistance' must be a positive numerical value"
 
         self.habitat_axis_height = habitat_axis_height
         self.thermal_resistance = thermal_resistance
+
+class Earthworks(Shell):
+    """
+    An object to store cylinderical hole in the ground in which the habitat sits. 
+    Can include any large open cavity in the ground, including trenches or holes
+    Also includes tunnels or lava tubes, natural or otherwise
+
+    TODO: find a better name. Earthworks? Excavations? Cavities?
+
+    Args:
+        radius_inner (float):       radius of the inside of the of the cavity (m)
+        depth_of_axis (float)       depth below ground level that the central axis of the cavity sits (m) 
+                                    if less than radius_inner, the cavity will not be entirely below ground
+    
+    """
+    def __init__(self, radius_inner, depth_of_axis):
+        assert is_numeric(radius_inner, positive=True), "Cavity 'radius_inner' must be a positive number"
+        assert is_numeric(depth_of_axis), "Cavity 'depth_of_axis' must be a number"
+        assert depth_of_axis > -radius_inner, "Cavity 'depth_of_axis' is too low, cavity does not intersect the ground"
+
+        self.radius_inner = radius_inner
+        self.depth_of_axis = depth_of_axis
+
+        if self.depth_of_axis > self.radius_inner:
+            self.exit_strip_width = 0
+        else:
+            self.exit_strip_width = 2 * self.radius_inner * np.sin(
+                np.arccos(self.depth_of_axis / self.radius_inner))
+    
+    def view_factor_ground_cylinder(self, orientation, radius_outer, axis_height_from_ground, length_outer):
+        """
+        Calculates the view factor from a cylinder inside the Earthworks to the ground 
+            (including the inner surface of the earthworks)
+        
+        Args:
+            orientation (str)       one of "horizontal" or "vertical"
+            radius_outer (float)    outer radius of the cylinder (m)
+        """
+
+        view_factor_ground = 0
+
+        if self.depth_of_axis > self.radius_inner:
+            # Earthworks has no view to the sky
+            view_factor_ground = 1
+        
+        elif orientation == "horizontal":
+            # Using Equation from [3] for view factor from planar strip to cylinder
+            v = self.exit_strip_width / (2 * radius_outer)
+            h = (self.radius_inner + self.depth_of_axis - axis_height_from_ground) / radius_outer
+
+            if h > 0:
+                # The top of the habitat is below the top rim of the hole
+                # An virtual surface is drawn across the rim
+                view_factor_ground = 1 - (np.arctan(v / h) / np.pi)
+            
+            else:
+                # The top of the habitat extends above the top rim of the hole
+                # Virtual surfaces are drawn above and to the sides of the cylinder
+
+                v_top = 2 * radius_outer
+                h_top = 1
+                view_factor_sky_top = np.arctan(v_top / h_top) / np.pi
+
+                # Side boxes
+                w1 = self.radius_inner + self.depth_of_axis - axis_height_from_ground
+                w2 = radius_outer
+                h_side = 1
+
+                v1_side = w1 / radius_outer
+                v2_side = w2 / radius_outer
+
+                view_factor_sky_side = (np.arctan(v2_side / h_side) - np.arctan(v1_side / h_side)) / np.pi
+
+                view_factor_ground = 1 - (view_factor_sky_top + view_factor_sky_side)
+
+        elif orientation == "vertical":
+
+            exit_strip_radius = self.exit_strip_width / 2
+            D = ((self.radius_inner + self.depth_of_axis) - (axis_height_from_ground + length_outer)) / exit_strip_radius
+            Y = 1e10 / exit_strip_radius
+            X = ((self.radius_inner + self.depth_of_axis) - axis_height_from_ground) / exit_strip_radius
+            L = length_outer / exit_strip_radius
+            R = radius_outer / exit_strip_radius
+
+            def A(x):
+                return(np.power(x, 2) + np.power(R, 2) - 1) 
+            
+            def B(x):
+                return(np.power(x, 2) - np.power(R, 2) + 1)
+            
+            def F(x):
+                f = np.sqrt(np.power((A(x) + 2) / R, 2 ) - 4) * np.arccos(A(x) * x / B(x)) - (
+                    A(x) / (2 * x * R)) * np.arcsin(R)
+                f *= (-0.5 / x) 
+                f += B(x) / (8 * R * x)
+
+                return(f)
+
+            if self.radius_inner + self.depth_of_axis > (axis_height_from_ground + length_outer):
+                # The top of the habitat is below the top rim of the hole
+                # A virtual cylinder is drawn at the top of the rim
+                # Equation 8 from [4] is used, with the length of the outer cylinder tending to infinity
+                view_factor_sky = ((L + D) / D) * F(L + D)
+                view_factor_sky += ((Y + D) / L) * F(Y + D)
+                view_factor_sky -= (D / L) * F(D)
+                view_factor_sky -= ((Y + D + L) / L) * F(Y + D + L)
+            
+            else:
+                # The top of the habitat is above the top rim of the hole
+                # A virtual cylinder is drawn at the top of the rim
+                # Equation 6 from [4] is used, with the length of the outer cylinder tending to infinity
+
+                view_factor_sky = (X / L) * F(X)
+                view_factor_sky += ((L - X) / L) * (1 - F(L - X))
+                view_factor_sky += ((Y + X - L) / L) * F(Y + X - L)
+                view_factor_sky -= ((X + Y) / L) * F(X + Y)
+            
+            view_factor_ground = 1 - view_factor_sky
+
+            
+        return(view_factor_ground)
+
+

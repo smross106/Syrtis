@@ -54,6 +54,7 @@ class Habitat:
 
         self._shells = []
         self.groundlevel = None
+        self.earthworks = None
 
         self.radius_outer = 0
         self.length_outer = 0
@@ -379,60 +380,6 @@ class Habitat:
             pass
     
         return(direct_solar_area)
-
-
-        """if self.groundlevel != None:
-            if self.orientation == "horizontal" and self.groundlevel.habitat_axis_height < (-self.radius_outer):
-                return(direct_solar_area)
-            elif self.orientation == "vertical" and self.groundlevel.habitat_axis_height < -(self.length_outer + self.radius_outer):
-                return(direct_solar_area)
-
-        """
-        #Direct solar area - area that can see the Sun
-        """
-
-        if self.orientation == "horizontal":
-            # Area of cylinder projected to the plane perpendicular to the Sun
-            # Two components are axial and radial-ish directions
-            direct_solar_area += 2 * self.length_outer * self.radius_outer * (
-                np.cos(solar_altitude_rad) * np.cos(solar_azimuth_rad) * 0.5 * (1 + np.cos(np.deg2rad(self.ground_contact_angle)))
-                + np.sin(solar_azimuth_rad)) 
-            
-            if self.endcap_type == "flat":
-                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
-                    np.cos(solar_altitude_rad) * abs(np.cos(solar_azimuth_rad))) * 0.5 * (
-                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
-            
-            elif self.endcap_type == "hemisphere":
-                # Area of hemisphere projected onto the plane perpendicular to the Sun
-                # Two components are axial (plan view) and radial-ish (side view)
-                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
-                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * abs(np.cos(solar_azimuth_rad)) * 0.5 * (
-                1 + np.cos(np.deg2rad(self.ground_contact_angle)))
-                         
-        elif self.orientation == "vertical":
-            # Area of cylinder projected to the plane perpendicular to the Sun
-
-            if self.groundlevel == None:
-                direct_solar_area += 2 * self.length_outer * self.radius_outer * (
-                np.sin(solar_altitude_rad)) 
-            
-            else:
-                direct_solar_area += 2 * (self.length_outer - self.groundlevel.habitat_axis_height) * self.radius_outer * (
-                np.sin(solar_altitude_rad)) 
-
-            if self.endcap_type == "flat":
-                direct_solar_area += self.exposed_area_endcap * np.sin(solar_altitude_rad) 
-            
-            elif self.endcap_type == "hemisphere":
-                # Area of hemisphere projected onto the plane perpendicular to the Sun
-                # Two components are axial (plan view) and radial-ish (side view)
-                direct_solar_area += np.pi * np.power(self.radius_outer, 2) * (
-                    np.cos(solar_altitude_rad) + 0.5 * np.sin(solar_altitude_rad)) * 0.5 * (
-                        1 + np.cos(np.deg2rad(self.ground_contact_angle)))
-        
-        return(direct_solar_area)"""
-
         
     def indirect_solar_area(self):
         """
@@ -684,7 +631,7 @@ class Habitat:
         Uses equations from Reference [4]
         """
 
-        if self.orientation == "vertical":
+        if self.orientation == "vertical" and self.earthworks == None:
             vf_cylinder = 0.5
 
             vf_endcap = 0.5
@@ -692,7 +639,7 @@ class Habitat:
             vf = ((vf_cylinder * self.exposed_area_cylinder) +
             (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
 
-        elif self.orientation == "horizontal":
+        elif self.orientation == "horizontal" and self.earthworks == None:
 
             vf_cylinder_top = 0.5 - (1 / np.pi)
             vf_cylinder_bottom = 0.5 + (1 / np.pi)
@@ -702,6 +649,14 @@ class Habitat:
             vf = ((vf_cylinder_top * 0.5 * self.exposed_area_cylinder) + 
             (vf_cylinder_bottom * 0.5 * self.exposed_area_cylinder) +
             (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
+        
+        elif self.earthworks != None:
+            axis_height_from_ground = self.radius_outer
+
+            if self.groundlevel != None:
+                axis_height_from_ground += self.groundlevel.habitat_axis_height
+
+            vf = self.earthworks.view_factor_ground(self, self.orientation, self.radius_outer, axis_height_from_ground, self.length_outer)
         
         return(vf)
 
