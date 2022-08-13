@@ -100,8 +100,6 @@ class ConfigurationManager(SolverManager):
             solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
                 self.habitat, configuration)
             
-            
-            
             if verbose:
                 heat_loss, report = solver.solve(verbose=True)
 
@@ -119,4 +117,36 @@ class ConfigurationManager(SolverManager):
         else:
             return(self.each_configuration_inputs_dicts, heat_losses)
 
+class TimeManager(SolverManager):
+    """
+    Calculate heat flux at each point in a day
+    
+    Args:
+        habitat (syrtis.Habitat):               habitat under consideration
+        configuration (syrtis.Configuration):   baseline configuration - temperatures and solar properties will be overwritten
 
+    """
+    def __init__(self, habitat, configuration, num_points,
+        atmosphere_tau, latitude, areocentric_longitude,
+        T_air_peak, T_air_night, T_ground_peak, T_ground_night, time_air_peak=13, time_ground_peak=15):
+
+        self.habitat = habitat
+        self.configuration = configuration
+        self.num_points = num_points
+
+        self.atmosphere_tau = atmosphere_tau
+        self.latitude = latitude
+        self.areocentric_longitude = areocentric_longitude
+
+        self.T_air_peak = T_air_peak
+        self.T_air_night = T_air_night
+        self.T_ground_peak = T_ground_peak
+        self.T_ground_night = T_ground_night
+
+        self.time_air_peak = time_air_peak
+        self.time_ground_peak = time_ground_peak
+
+
+        mars_ecc = 0.093377
+        self.solar_intensity_space = 590 * np.power(
+            (1 + mars_ecc * np.cos(self.areocentric_longitude - 248)) / (1 - mars_ecc), 2)
