@@ -16,8 +16,6 @@ References:
  - [11]- Heat Transfer, J P Holman 10th Edition
 """
 
-from sys import orig_argv
-from unittest.mock import NonCallableMagicMock
 import numpy as np
 from numbers import Number
 

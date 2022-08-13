@@ -19,15 +19,20 @@ class Solver:
         self.name = name
         self.habitat = habitat
         self.configuration = configuration
-    
+
+        self.heat = 0
+        self.shell_temperatures = []
+        self.report = {}
+        self.thermal_energy = 0
+
     def solve(self, verbose=False):
         if self.configuration.solution_type == "constant temperature":
             if verbose:
-                heat, report = self.iterate_constant_temperature(verbose=True)
-                return(heat, report)
+                self.iterate_constant_temperature(verbose=True)
+                return(self.heat, self.report)
             else:
-                heat = self.iterate_constant_temperature(verbose=False)
-                return(heat, report)
+                self.iterate_constant_temperature(verbose=False)
+                return(self.heat, self.report)
         else:
             print("Constant power not implemented yet")
 
@@ -66,12 +71,10 @@ class Solver:
             return(np.nan)
         else:
             if verbose:
-                report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
+                self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
 
-                return(Q_external_flux, report)
-            
-            else:
-                return(Q_external_flux)
+            self.shell_temperatures = shell_temperatures
+            self.heat = Q_external_flux
         
         """inputs = [*[Q_internal_flux], *shell_temperatures]
 
@@ -87,6 +90,12 @@ class Solver:
 
         return(Q_internal_flux)"""
     
+    def iterate_constant_power(self, verbose=False):
+        """
+        Iterate to find the shell temperatures when power loss from the habitat is constant
+        """
+        pass
+
     def verify_temperatures(self, shell_temperatures):
         """
         Verify that a given set of temperatures are either monotonically increasing or decreasing 
@@ -173,7 +182,7 @@ class Solver:
         for shell_count in range(1,len(wall_resistances)+1):
 
             shell_temperature = updated_shell_temperatures[shell_count-1] - wall_resistances[shell_count-1] * Q
-
+ 
             if shell_temperature < 0:
                 #print("Shell temperature error ", str(shell_temperature))
                 shell_temperature = shell_temperatures[shell_count]
@@ -293,100 +302,22 @@ class Solver:
         else:
             return(Q_total)
     
+    def calculate_thermal_energy(self, T_ref=0):
+        """
+        Calculates the total thermal energy stored in the habitat, compared to a reference temperature
+
+        Args:
+            T_ref (float):          reference temperature for the energy state (K)
+        """
+        assert len(self.shell_temperatures) == len(self.habitat._shells) + 1, "Run solver.solve before solver.thermal_energy"
+
+        self.thermal_energy = 0
+
+        for shell_count, shell in enumerate(self.habitat._shells):
+            T_avg = sum(self.shell_temperatures[shell_count:shell_count+1])
+            self.thermal_energy += shell.thermal_energy(self.habitat.endcap_type, T_avg, T_ref)
+
     def generate_error(self, state1, state2):
         error = np.sum((np.ndarray(state1) - np.ndarray(state2))**2)
 
         return(error)
-
-            
-
-if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500, 0.1)
-    co2 = ConstrainedIdealGas("STP CO2", 101325, 44, 0.71, 10.9e-6, 749, 0.0153)
-
-    bocachica = Configuration("bocachica", "constant temperature",
-    300, 1, 0.29, 300, 101325, 1, "cross", 90, 90, 1000, T_habitat=80)
-    
-    heat_gain = []
-    thicknesses = np.logspace(-3, 0.75, 80)
-    #thicknesses = np.linspace(0.001, 1.001, 500)
-
-    for thickness in thicknesses:
-        tankfarm = Habitat("vertical", 50, "flat")
-        tankfarm.create_static_shell(co2, 4.5)
-        tankfarm.create_static_shell(steel, 0.001)
-        tankfarm.create_static_shell(co2, thickness)
-        tankfarm.create_static_shell(steel, 0.001)
-
-        tankfarm.verify_geometry()
-
-        s = Solver("test", tankfarm, bocachica)
-        q = s.iterate_constant_temperature()
-
-        heat_gain.append(-q)
-    
-    import matplotlib.pyplot as plt
-
-    plt.scatter(thicknesses, heat_gain)
-    plt.xscale("log")
-    plt.xlim(9e-4, 10)
-    plt.ylim(7e5,14e5)
-    plt.xlabel("Gap between inner and outer wall (m)")
-    plt.ylabel("Heat gain into tank (W)")
-    plt.title("Syrtis evaluation case \n Heat gain into GSE tanks at Boca Chica tank farm")
-    plt.show()
-
-
-"""if __name__ == "__main__":
-    steel = Solid("Steel", 150, 8700, 500, 0.55)
-    painted_steel = Solid("Painted Steel", 150, 8700, 500, 0.1)
-    internal_air = ConstrainedIdealGas("STP CO2", 101325, 29, 0.71, 10.9e-6, 749, 0.0153)
-    co2_ambient = ConstrainedIdealGas("STP CO2", 580, 44, 0.71, 10.9e-6, 749, 0.0153)
-
-    columbus = Habitat("horizontal", 7, "flat")
-
-    columbus.create_static_shell(internal_air, 2.2)
-    columbus.create_static_shell(steel, 4e-3)
-
-    columbus.verify_geometry()
-
-    columbus_p = Habitat("horizontal", 7, "flat")
-
-    columbus_p.create_static_shell(internal_air, 2.2)
-    columbus_p.create_static_shell(painted_steel, 4e-3)
-
-    columbus_p.verify_geometry()
-
-    temps = np.linspace(273, 313, 40)
-    temps_c = np.linspace(0, 40, 40)
-    qs = []
-    qs_painted = []
-
-    for temp in temps:
-        equator = Configuration("equator", "constant temperature",
-            210, 0.1, 0.29, 210, 580, 1, "cross", 90, 90, 605, T_habitat=temp)
-    
-        s = Solver("columbus equator Mars", columbus, equator)
-
-        q = s.iterate_constant_temperature()
-    
-        qs.append(q)
-
-        s_p = Solver("columbus equator Mars", columbus_p, equator)
-
-        q_p = s_p.iterate_constant_temperature()
-    
-        qs_painted.append(q_p)
-    
-    print(qs[0])
-
-    import matplotlib.pyplot as plt
-
-    plt.scatter(qs, temps_c, label="Unpainted steel")
-    plt.scatter(qs_painted, temps_c, label="Painted steel")
-    plt.ylabel("Internal temperature (C)")
-    plt.xlabel("Heat loss")
-    plt.title("Syrtis evaluation case \n Heat loss from ISS Columbus on Martian surface")
-    plt.legend()
-    plt.show()
-"""

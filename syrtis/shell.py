@@ -126,7 +126,6 @@ class StaticShell(Shell):
             else:
                 self.thermal_resistance = 1 / ((1 / thermal_resistance) + (1 / self.parallel_thermal_resistance))
             
-
     def thermal_resistance_solid(self):
         # Using equation from Reference [1]
         R_th = np.log(self.radius_outer / self.radius_inner) / (2 * np.pi * self.material.k * self.length)
@@ -195,6 +194,32 @@ class StaticShell(Shell):
         R_th = np.log(self.radius_outer / self.radius_inner) / (2 * np.pi * k * k_eq * self.length)
 
         return(R_th)
+
+    def thermal_energy(self, endcap_type, T_avg, T_ref=0):
+        """
+        Calculates the thermal energy (J) stored in the Shell relative to T_ref
+        
+        Args:
+            endcap_type (str):      either "hemisphere" or "flat"
+            T_avg (float):          average temperature of the Shell (K)
+            T_ref (float):          reference temperature for the energy state (K)
+        """
+
+        volume = np.pi * (np.power(self.radius_outer, 2) - np.power(self.radius_inner, 2)) * self.length
+
+        if endcap_type == "hemisphere":
+            volume += (4/3) * np.pi * (np.power(self.radius_outer, 3) - np.power(self.radius_inner, 3))
+        elif endcap_type == "flat":
+            volume += 2 * np.pi * np.power(self.radius_outer, 2) * self.thickness
+        
+        if type(self.material) == Solid:
+            thermal_capacity = self.material.rho * self.material.cp * volume
+        elif type(self.material) == ConstrainedIdealGas:
+            thermal_capacity = self.material.rho(T_avg) * self.material.cp(T_avg) * volume
+        
+        thermal_energy = thermal_capacity * (T_avg - T_ref)
+
+        return(thermal_energy)
 
 class GroundLevel(Shell):
     """

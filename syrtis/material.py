@@ -142,6 +142,21 @@ class ConstrainedIdealGas(Material):
 
         return(self._mu)
 
+    def cp(self, T):
+        """
+        Specific heat capacity at constant pressure
+
+        Args:
+            T (float):  Temperature (K) 
+        """
+
+        if self.input_T == False:
+            T = self._T
+        else:
+            assert is_numeric(T, positive=True),   "Input 'T' must be a positive numerical value"
+
+        return(self._cp)
+
     def Pr(self, T):
         """
         Prandtl number
