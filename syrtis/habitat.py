@@ -16,6 +16,7 @@ References:
  - [11]- Heat Transfer, J P Holman 10th Edition
 """
 
+from sys import orig_argv
 from unittest.mock import NonCallableMagicMock
 import numpy as np
 from numbers import Number
@@ -642,7 +643,11 @@ class Habitat:
             vf_endcap = 0.5
         
         elif self.earthworks != None:
-            axis_height_from_ground = self.radius_outer
+
+            if self.orientation == "vertical":
+                axis_height_from_ground = 0
+            elif self.orientation == "horizontal":
+                axis_height_from_ground = self.radius_outer
 
             if self.groundlevel != None:
                 axis_height_from_ground += self.groundlevel.habitat_axis_height
@@ -737,11 +742,26 @@ class Habitat:
             solar_intensity (float):power delivered by solar radiation after dust absorption, W/m2
         """
 
+        if self.earthworks == None:
+            solar_intensity_multipler = 1
+        else:
+            if self.orientation == "vertical":
+                axis_height_from_ground = 0
+            elif self.orientation == "horizontal":
+                axis_height_from_ground = self.radius_outer
+
+            if self.groundlevel != None:
+                axis_height_from_ground += self.groundlevel.habitat_axis_height
+            
+            solar_intensity_multipler = self.earthworks.direct_solar_intensity_scaling(
+                self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground, 
+                solar_altitude, solar_azimuth)
+
         direct_lit_area = self.direct_solar_area(solar_altitude, solar_azimuth)
         
         if self._shells[-1].material.transmit == 0:
             # Outer layer is opaque - all solar energy is delivered to outermost shell
-            Q_solar_direct = solar_intensity * direct_lit_area * self._shells[-1].material.absorb
+            Q_solar_direct = solar_intensity * solar_intensity_multipler * direct_lit_area * self._shells[-1].material.absorb
         
         # A negative sign is used for consistency with convention that +ve Q = heat loss
         return(-Q_solar_direct)
@@ -757,11 +777,26 @@ class Habitat:
             albedo_ground (float):  albedo of the surface around the habitat
         """
 
+        if self.earthworks == None:
+            solar_intensity_multipler = 1
+        else:
+            if self.orientation == "vertical":
+                axis_height_from_ground = 0
+            elif self.orientation == "horizontal":
+                axis_height_from_ground = self.radius_outer
+
+            if self.groundlevel != None:
+                axis_height_from_ground += self.groundlevel.habitat_axis_height
+            
+            solar_intensity_multipler = self.earthworks.indirect_solar_intensity_scaling(
+                self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground, 
+                solar_altitude, solar_azimuth)
+
         indirect_lit_area = self.indirect_solar_area()
         
         if self._shells[-1].material.transmit == 0:
             # Outer layer is opaque - all solar energy is delivered to outermost shell
-            Q_solar_indirect = solar_intensity * albedo_ground * indirect_lit_area * self._shells[-1].material.absorb
+            Q_solar_indirect = solar_intensity * solar_intensity_multipler * albedo_ground * indirect_lit_area * self._shells[-1].material.absorb
         
         # A negative sign is used for consistency with convention that +ve Q = heat loss
         return(-Q_solar_indirect)

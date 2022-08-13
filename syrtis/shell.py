@@ -379,3 +379,73 @@ class Earthworks(Shell):
             view_factor_ground = 1
         
         return(view_factor_ground)
+    
+    def direct_solar_intensity_scaling(self, orientation, radius_outer, length_outer, axis_height_from_ground, solar_altitude, solar_azimuth):
+        """
+        Scales the direct solar intensity based on how much of the habitat can see the Sun at a given value of altitude and azimuth
+        Passes value back to solar heat gain functions in Habitat 
+
+        Args:
+            orientation (str):                  one of "horizontal" or "vertical"
+            radius_outer (float):               outer radius of the cylinder (m)
+            length_outer (float):               length of the cylinder
+            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                                above the ground
+            solar_altitude (float):             vertical angle of the sun above the horizon (degrees)
+            solar_azimuth (float):              horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
+                                                assumed that a horizontal habitat lies in the same axis as the Earthworks tunnel
+        
+        TODO: work out the geometry for this function. The percentage of the habitat which is hit with direct sunlight.
+            Probably requires working out the depth into the Earthworks which the sunlight reaches, and what fraction of the
+            Habitat is above a given angle.
+            Can't currently wrap head around how the solar azimuth affects the depth reached. When azimuth=0, sunlight will reach
+            the bottom. When azimuth=90, it will be the direct projection from the rim. What about in between?
+        """
+        solar_multiplier = 1
+
+        if self.depth_of_axis > self.radius_inner:
+            # Earthworks has no view to the sky
+            solar_multiplier = 1
+            return(solar_multiplier)
+
+        angle_over_rim = 0
+        
+        if orientation == "horizontal":
+            pass
+        
+        elif orientation == "vertical":
+            pass
+        
+        return(solar_multiplier)
+    
+    def indirect_solar_intensity_scaling(self, orientation, radius_outer, length_outer, axis_height_from_ground, solar_altitude, solar_azimuth):
+        """
+        Scales the indirect solar intensity based on how much of the habitat can see the Sun at a given value of altitude and azimuth
+        Passes value back to solar heat gain functions in Habitat 
+
+        Args:
+            orientation (str):                  one of "horizontal" or "vertical"
+            radius_outer (float):               outer radius of the cylinder (m)
+            length_outer (float):               length of the cylinder
+            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                                above the ground
+            solar_altitude (float):             vertical angle of the sun above the horizon (degrees)
+            solar_azimuth (float):              horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
+                                                assumed that a horizontal habitat lies in the same axis as the Earthworks tunnel
+
+        TODO: work out the geometry required for this function. The percentage of the surroundings lit with direct sunlight
+        """
+        solar_multiplier = 1
+
+        if self.depth_of_axis > self.radius_inner:
+            # Earthworks has no view to the sky
+            solar_multiplier = 1
+            return(solar_multiplier)
+        
+        if orientation == "horizontal":
+            pass
+        
+        elif orientation == "vertical":
+            pass
+        
+        return(solar_multiplier)
