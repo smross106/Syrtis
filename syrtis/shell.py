@@ -226,7 +226,7 @@ class Earthworks(Shell):
 
     Args:
         radius_inner (float):       radius of the inside of the of the cavity (m)
-        depth_of_axis (float)       depth below ground level that the central axis of the cavity sits (m) 
+        depth_of_axis (float):      depth below ground level that the central axis of the cavity sits (m) 
                                     if less than radius_inner, the cavity will not be entirely below ground
     
     """
@@ -244,14 +244,17 @@ class Earthworks(Shell):
             self.exit_strip_width = 2 * self.radius_inner * np.sin(
                 np.arccos(self.depth_of_axis / self.radius_inner))
     
-    def view_factor_ground_cylinder(self, orientation, radius_outer, axis_height_from_ground, length_outer):
+    def view_factor_ground_cylinder(self, orientation, radius_outer, length_outer, axis_height_from_ground):
         """
         Calculates the view factor from a cylinder inside the Earthworks to the ground 
             (including the inner surface of the earthworks)
         
         Args:
-            orientation (str)       one of "horizontal" or "vertical"
-            radius_outer (float)    outer radius of the cylinder (m)
+            orientation (str):                  one of "horizontal" or "vertical"
+            radius_outer (float):               outer radius of the cylinder (m)
+            length_outer (float):               length of the cylinder
+            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                                above the ground
         """
 
         view_factor_ground = 0
@@ -337,4 +340,42 @@ class Earthworks(Shell):
             
         return(view_factor_ground)
 
+    def view_factor_ground_hemisphere(self, orientation, radius_outer, length_outer, axis_height_from_ground):
+        """
+        Calculates the view factor from a hemispherical endcap inside the Earthworks to the ground 
+            (including the inner surface of the earthworks)
+        
+        Args:
+            orientation (str):                  one of "horizontal" or "vertical"
+            radius_outer (float):               outer radius of the cylinder (m)
+            length_outer (float):               length of the cylinder
+            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                                above the ground
+        """
+        view_factor_ground = 0
 
+        if self.depth_of_axis > self.radius_inner:
+            # Earthworks has no view to the sky
+            view_factor_ground = 1
+        
+        return(view_factor_ground)
+    
+    def view_factor_ground_disc(self, orientation, radius_outer, length_outer, axis_height_from_ground):
+        """
+        Calculates the view factor from a flat endcap inside the Earthworks to the ground 
+            (including the inner surface of the earthworks)
+        
+        Args:
+            orientation (str):                  one of "horizontal" or "vertical"
+            radius_outer (float):               outer radius of the cylinder (m)
+            length_outer (float):               length of the cylinder
+            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                                above the ground
+        """
+        view_factor_ground = 0
+
+        if self.depth_of_axis > self.radius_inner:
+            # Earthworks has no view to the sky
+            view_factor_ground = 1
+        
+        return(view_factor_ground)

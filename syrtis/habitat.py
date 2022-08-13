@@ -627,7 +627,7 @@ class Habitat:
 
     def view_factor_ground(self):
         """
-        Calculate the view factor to the ground from the cylinder
+        Calculate the view factor to the habitat to flat ground
         Uses equations from Reference [4]
         """
 
@@ -636,19 +636,10 @@ class Habitat:
 
             vf_endcap = 0.5
 
-            vf = ((vf_cylinder * self.exposed_area_cylinder) +
-            (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
-
         elif self.orientation == "horizontal" and self.earthworks == None:
-
-            vf_cylinder_top = 0.5 - (1 / np.pi)
-            vf_cylinder_bottom = 0.5 + (1 / np.pi)
+            vf_cylinder = 0.5 
 
             vf_endcap = 0.5
-
-            vf = ((vf_cylinder_top * 0.5 * self.exposed_area_cylinder) + 
-            (vf_cylinder_bottom * 0.5 * self.exposed_area_cylinder) +
-            (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)
         
         elif self.earthworks != None:
             axis_height_from_ground = self.radius_outer
@@ -656,8 +647,20 @@ class Habitat:
             if self.groundlevel != None:
                 axis_height_from_ground += self.groundlevel.habitat_axis_height
 
-            vf = self.earthworks.view_factor_ground(self, self.orientation, self.radius_outer, axis_height_from_ground, self.length_outer)
-        
+            vf_cylinder = self.earthworks.view_factor_ground_cylinder(
+                self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+            
+            if self.endcap_type == "hemisphere":
+                vf_endcap = self.earthworks.view_factor_ground_hemisphere(
+                    self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+            
+            elif self.endcap_type == "flat":
+                vf_endcap = self.earthworks.view_factor_ground_disc(
+                    self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+            
+        vf = ((vf_cylinder * self.exposed_area_cylinder) + 
+            (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)   
+
         return(vf)
 
     def radiative_loss_sky(self, T_wall):
