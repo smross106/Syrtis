@@ -38,7 +38,7 @@ class Configuration:
 
         assert solution_type in solution_types, "Configuration 'solution_type' must be a valid keyword"
 
-        assert solution_type == "constant temperature" and T_habitat != 0, "If 'constant temperature' has been selected, T_habitat must be set"
+        #assert solution_type == "constant temperature" and T_habitat != 0, "If 'constant temperature' has been selected, T_habitat must be set"
 
         assert air_direction in air_directions, "Configuration 'air_direction' must be a valid keyword"
 
