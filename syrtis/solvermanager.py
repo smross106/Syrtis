@@ -13,10 +13,12 @@ import copy
 
 from syrtis.configuration import Configuration
 from syrtis.solver import Solver
+from itertools import product
 
-SOL_HRS = 24.64
+SOL_HRS = 24.65
 MARS_RADIUS = 3396.2e3
 MARS_ATMOSPHERE_OPTICAL_HEIGHT = 8624
+MARS_ECC = 0.093377
 
 
 class SolverManager:
@@ -35,6 +37,7 @@ class SolverManager:
 
         heat_losses = []
         reports = []
+        completed_solvers = []
         
         for configuration_index, configuration in enumerate(self.configurations):
             self.habitat.verify_geometry()
@@ -42,22 +45,21 @@ class SolverManager:
             solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
                 self.habitat, configuration)
             
-            if verbose:
-                heat_loss, report = solver.solve(verbose=True)
-
-                heat_losses.append(heat_loss)
-
-                reports.append(report)
+            solver.solve(verbose=True)
+            heat_losses.append(solver.heat)
+            reports.append(solver.report)
+            completed_solvers.append(solver)
             
-            else:
-                heat_loss = solver.solve()
-                
-                heat_losses.append(heat_loss)
         
+        
+        self.heat_losses = heat_losses
+        self.reports = reports
+        self.completed_solvers = completed_solvers
+
         if verbose:
-            return(self.each_configuration_inputs_dicts, heat_losses, reports)
+            return(self.each_configuration_inputs_dicts, self.heat_losses, self.reports)
         else:
-            return(self.each_configuration_inputs_dicts, heat_losses)
+            return(self.each_configuration_inputs_dicts, self.heat_losses)
 
 class ConfigurationManager(SolverManager):
     """
@@ -162,140 +164,149 @@ class DayManager(SolverManager):
         self.time_air_peak = time_air_peak
         self.time_ground_peak = time_ground_peak
 
-
-        mars_ecc = 0.093377
-        self.solar_intensity_space = 590 * np.power(
-            (1 + mars_ecc * np.cos(self.areocentric_longitude - 248)) / (1 - mars_ecc), 2)
-        
+        self.create_configurations()
+              
     def create_configurations(self):
         """
         Create all the configurations for the day
         """
-        times = np.linspace(0, SOL_HRS, self.num_points)
-        solar_intensities, solar_altitudes, solar_azimuths = self.generate_solar_data(times)
-        T_airs = self.generate_temperatures(times, self.T_air_max, self.T_air_min, self.time_air_peak)
-        T_grounds = self.generate_temperatures(times, self.T_ground_max, self.T_ground_min, self.time_ground_peak)
+        self.times = np.linspace(0, SOL_HRS, self.num_points)
+        self.generate_solar_data()
+        self.T_airs = self.generate_temperatures(self.T_air_max, self.T_air_min, self.time_air_peak)
+        self.T_grounds = self.generate_temperatures(self.T_ground_max, self.T_ground_min, self.time_ground_peak)
 
         baseline_configuration = copy.deepcopy(self.configuration)
 
         configurations = []
+        each_configuration_inputs_dicts = []
         
-        for point, time in enumerate(times):
+        for point, time in enumerate(self.times):
+
             time_configuration = copy.deepcopy(baseline_configuration)
             time_configuration.name = time_configuration.name + " {:.2f}".format(time)
 
-            time_configuration.T_air = T_airs[point]
-            time_configuration.T_ground = T_grounds[point]
+            time_configuration.T_air = self.T_airs[point]
+            time_configuration.T_ground = self.T_grounds[point]
 
-            time_configuration.solar_intensity = solar_intensities[point]
-            time_configuration.solar_altitude = solar_altitudes[point]
-            time_configuration.solar_azimuth = solar_azimuths[point]
+            time_configuration.solar_intensity = self.solar_intensities[point]
+            time_configuration.solar_altitude = self.solar_altitudes[point]
+            time_configuration.solar_azimuth = self.solar_azimuths[point]
+
+            configuration_dict = copy.deepcopy(time_configuration.__dict__)
 
             configurations.append(time_configuration)
+            each_configuration_inputs_dicts.append(configuration_dict)
         
         self.configurations = configurations
+        self.each_configuration_inputs_dicts = each_configuration_inputs_dicts
+    
+    def generate_solar_data(self):
+        """
+        Generate lists of solar intensities, altitudes and azimuths for a single day.
 
-        def generate_solar_data(self, times):
-            """
-            Generate lists of solar intensities, altitudes and azimuths for a single day.
+        Solar position implements method from Reference [1] with necessary modifications for Martian orbital parameters.
 
-            Solar position implements method from Reference [1] with necessary modifications for Martian orbital parameters.
+        Martian atmospheric optimal height, for use in calculation from Source [2]. Calculation is based on constant-density
+        hydrostatic argument, with data taken from [3]
+        """
+        
+        axis_obliquity = np.deg2rad(24.936)
+        subsolar_latitude = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
 
-            Martian atmospheric optimal height, for use in calculation from Source [2]. Calculation is based on constant-density
-            hydrostatic argument, with data taken from [3]
-            """
+        solar_intensity_space = 590 * np.power(
+        (1 + MARS_ECC * np.cos(self.areocentric_longitude - 248)) / (1 - MARS_ECC), 2)
+
+        solar_intensities = np.zeros((self.num_points))
+        solar_altitudes = np.zeros((self.num_points))
+        solar_azimuths = np.zeros((self.num_points))
+
+
+        for point in range(self.num_points):
+            subsolar_longitude = np.deg2rad(-15 * (self.times[point] - (SOL_HRS/2)))
+
+            Sx = np.cos(subsolar_latitude) * np.sin(subsolar_longitude)
+            Sy = (np.cos(self.latitude) * np.sin(subsolar_latitude)) - (
+                np.sin(self.latitude) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
+            Sz = (np.sin(np.deg2rad(self.latitude)) * np.sin(subsolar_latitude)) + (
+                np.cos(np.deg2rad(self.latitude)) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
+
+            solar_altitude = np.rad2deg(np.arcsin(Sz))
+            solar_azimuth_south_clockwise = np.rad2deg(np.arctan2(-Sx, Sy))
+            solar_azimuth = solar_azimuth_south_clockwise + self.configuration.solar_azimuth
+
+
+            # Calculate relative air mass for scaling the optical depth of the atmosphere
+            relative_air_mass = np.sqrt(np.power(MARS_RADIUS + MARS_ATMOSPHERE_OPTICAL_HEIGHT, 2) - 
+                np.power(MARS_RADIUS * np.cos(np.deg2rad(solar_altitude)), 2)) - MARS_RADIUS * np.sin(np.deg2rad(solar_altitude))
+            relative_air_mass /= MARS_ATMOSPHERE_OPTICAL_HEIGHT
+
+            optical_depth = np.exp(- self.atmosphere_tau * relative_air_mass)
+
+            solar_intensity = solar_intensity_space * optical_depth
+
+            if Sz <= 0:
+                solar_intensity = 0
+                solar_altitude = 0
+
+            solar_intensities[point] = solar_intensity
+            solar_altitudes[point] = solar_altitude
+            solar_azimuths[point] = solar_azimuth
+        
+        self.solar_intensities = solar_intensities
+        self.solar_altitudes = solar_altitudes
+        self.solar_azimuths = solar_azimuths
+
+    def generate_temperatures(self, T_peak, T_min, time_peak):
+        """
+        Generate the temperatures at each point in the day - can be called with either ground or ambient
+
+        Model used is a sinusoidal fit during the day, rising from a minimum at sunset to a maximum
+            either at local noon, or time_peak if set
+        Between sunset and sunrise, a linear fit is used to bridge the temperatures.
+        This approximately matches the data from [4]
+        """
+        
+        axis_obliquity = np.deg2rad(24.936)
+        solar_declination = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
+
+        time_sunrise = (SOL_HRS / (2 * np.pi)) * np.arccos(-np.tan(self.latitude) * np.tan(solar_declination))
+        time_sunset = SOL_HRS - time_sunrise
+
+        # Setting up amplitude for the cos wave
+        T_sine_peak = T_peak 
+        T_sine_trough = (T_min - T_sine_peak * np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS)) / (
+            1 - np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS))
+        
+        def T_sinusoid(time):
+            T = (T_sine_peak - T_sine_trough) * (np.cos((time - time_peak) * 2 * np.pi / SOL_HRS)) + T_sine_trough
+            return(T)
+
+        # Set up parameters for the linear fit
+        T_sunset = T_sinusoid(time_sunset)
+        T_sunrise = T_min
+        T_midnight = (T_sunset + T_sunrise) / 2
+
+        def T_linear(time):
+            if time > time_sunset:
+                T = (T_sunset - T_midnight) * ((SOL_HRS - time) / (SOL_HRS - time_sunset)) + T_midnight
+            else:
+                T = (T_sunrise - T_midnight) * (time / time_sunrise) + T_midnight
+            return(T)
+        
+        temps = np.zeros((self.num_points))
+
+        for point, time in enumerate(self.times):
+            if time > time_sunrise and time < time_sunset:
+                # Time is during the day
+                T = T_sinusoid(time)
+            else:
+                T = T_linear(time)
             
-            axis_obliquity = np.deg2rad(24.936)
-            subsolar_latitude = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
+            temps[point] = T
+        
+        return(temps)
 
-            solar_intensities = np.zeros((self.num_points))
-            solar_altitudes = np.zeros((self.num_points))
-            solar_azimuths = np.zeros((self.num_points))
-
-
-            for point in range(self.num_points):
-                subsolar_longitude = np.deg2rad(-15 * (times[point] - (SOL_HRS/2)))
-
-                Sx = np.cos(subsolar_latitude) * np.sin(subsolar_longitude)
-                Sy = (np.cos(self.latitude) * np.sin(subsolar_latitude)) - (
-                    np.sin(self.latitude) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
-                Sz = (np.sin(self.latitude) * np.sin(subsolar_latitude)) + (
-                    np.cos(self.latitude) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
-
-                solar_altitude = np.rad2deg(np.arcsin(Sz))
-                solar_azimuth_south_clockwise = np.rad2deg(np.arctan2(-Sx, Sy))
-                solar_azimuth = solar_azimuth_south_clockwise + self.configuration.solar_azimuth
-
-
-                # Calculate relative air mass for scaling the optical depth of the atmosphere
-                relative_air_mass = np.sqrt(np.power(MARS_RADIUS + MARS_ATMOSPHERE_OPTICAL_HEIGHT, 2) - 
-                    np.power(MARS_RADIUS * np.cos(np.deg2rad(solar_altitude)), 2)) - MARS_RADIUS * np.sin(np.deg2rad(solar_altitude))
-                relative_air_mass /= MARS_ATMOSPHERE_OPTICAL_HEIGHT
-
-                optical_depth = np.exp(np.e, - self.atmosphere_tau * relative_air_mass)
-
-                solar_intensity = self.solar_intensity_space * optical_depth
-
-                if solar_altitude < 0:
-                    solar_intensity = 0
-
-                solar_intensities[point] = solar_intensity
-                solar_altitudes[point] = solar_altitude
-                solar_azimuths[point] = solar_azimuth
-            
-            return(solar_intensities, solar_altitudes, solar_azimuths)
-
-        def generate_temperatures(self, times, T_peak, T_min, time_peak):
-            """
-            Generate the temperatures at each point in the day - can be called with either ground or ambient
-
-            Model used is a sinusoidal fit during the day, rising from a minimum at sunset to a maximum
-                either at local noon, or time_peak if set
-            Between sunset and sunrise, a linear fit is used to bridge the temperatures.
-            This approximately matches the data from [4]
-            """
-            
-            axis_obliquity = np.deg2rad(24.936)
-            solar_declination = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
-
-            time_sunrise = (SOL_HRS / (2 * np.pi)) * np.arccos(-np.tan(self.latitude) * np.tan(solar_declination))
-            time_sunset = SOL_HRS - time_sunrise
-
-            # Setting up amplitude for the sine wave
-            T_sine_peak = T_peak
-            T_sine_trough = (T_min - T_sine_peak * np.sin((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS)) / (
-                np.sin((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS) - 1)
-            
-            def T_sinusoid(time):
-                T = (T_sine_peak - T_sine_trough) * (np.sin((time - time_peak) * 2 * np.pi / SOL_HRS)) + T_sine_trough
-                return(T)
-
-            # Set up parameters for the linear fit
-            T_sunset = T_sinusoid(time_sunset)
-            T_sunrise = T_min
-            T_midnight = (T_sunset + T_sunrise) / 2
-
-            def T_linear(time):
-                if time > time_sunset:
-                    T = (T_sunset - T_midnight) * ((SOL_HRS - time) / (SOL_HRS - time_sunset)) + T_midnight
-                else:
-                    T = (T_midnight - T_sunrise) * (time / time_sunrise) + T_sunrise
-                return(T)
-            
-            temps = np.zeros((len(times)))
-
-            for point, time in enumerate(times):
-                if time > time_sunrise  and T < time_sunset:
-                    # Time is during the day
-                    T = T_sinusoid(time)
-                else:
-                    T = T_linear(time)
-                
-                temps[point] = T
-            
-            return(temps)
-
-            
+        
 
 
 
