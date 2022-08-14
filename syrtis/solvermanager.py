@@ -20,7 +20,44 @@ MARS_ATMOSPHERE_OPTICAL_HEIGHT = 8624
 
 
 class SolverManager:
-    pass
+    """
+    Parent class for all other solver managers
+    """
+
+
+    def __init__(self):
+        pass
+
+    def run_all_configurations(self, verbose=False):
+        """
+        Run all the configurations
+        """
+
+        heat_losses = []
+        reports = []
+        
+        for configuration_index, configuration in enumerate(self.configurations):
+            self.habitat.verify_geometry()
+
+            solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
+                self.habitat, configuration)
+            
+            if verbose:
+                heat_loss, report = solver.solve(verbose=True)
+
+                heat_losses.append(heat_loss)
+
+                reports.append(report)
+            
+            else:
+                heat_loss = solver.solve()
+                
+                heat_losses.append(heat_loss)
+        
+        if verbose:
+            return(self.each_configuration_inputs_dicts, heat_losses, reports)
+        else:
+            return(self.each_configuration_inputs_dicts, heat_losses)
 
 class ConfigurationManager(SolverManager):
     """
@@ -96,37 +133,6 @@ class ConfigurationManager(SolverManager):
         
         return(all_configurations)
 
-    def run_all_configurations(self, verbose=False):
-        """
-        Run all the configurations
-        """
-
-        heat_losses = []
-        reports = []
-        
-        for configuration_index, configuration in enumerate(self.configurations):
-            self.habitat.verify_geometry()
-
-            solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
-                self.habitat, configuration)
-            
-            if verbose:
-                heat_loss, report = solver.solve(verbose=True)
-
-                heat_losses.append(heat_loss)
-
-                reports.append(report)
-            
-            else:
-                heat_loss = solver.solve()
-                
-                heat_losses.append(heat_loss)
-        
-        if verbose:
-            return(self.each_configuration_inputs_dicts, heat_losses, reports)
-        else:
-            return(self.each_configuration_inputs_dicts, heat_losses)
-
 class DayManager(SolverManager):
     """
     Calculate heat flux at each point in a day
@@ -161,7 +167,35 @@ class DayManager(SolverManager):
         self.solar_intensity_space = 590 * np.power(
             (1 + mars_ecc * np.cos(self.areocentric_longitude - 248)) / (1 - mars_ecc), 2)
         
-        def generate_solar_data(self):
+    def create_configurations(self):
+        """
+        Create all the configurations for the day
+        """
+        times = np.linspace(0, SOL_HRS, self.num_points)
+        solar_intensities, solar_altitudes, solar_azimuths = self.generate_solar_data(times)
+        T_airs = self.generate_temperatures(times, self.T_air_max, self.T_air_min, self.time_air_peak)
+        T_grounds = self.generate_temperatures(times, self.T_ground_max, self.T_ground_min, self.time_ground_peak)
+
+        baseline_configuration = copy.deepcopy(self.configuration)
+
+        configurations = []
+        
+        for point, time in enumerate(times):
+            time_configuration = copy.deepcopy(baseline_configuration)
+            time_configuration.name = time_configuration.name + " {:.2f}".format(time)
+
+            time_configuration.T_air = T_airs[point]
+            time_configuration.T_ground = T_grounds[point]
+
+            time_configuration.solar_intensity = solar_intensities[point]
+            time_configuration.solar_altitude = solar_altitudes[point]
+            time_configuration.solar_azimuth = solar_azimuths[point]
+
+            configurations.append(time_configuration)
+        
+        self.configurations = configurations
+
+        def generate_solar_data(self, times):
             """
             Generate lists of solar intensities, altitudes and azimuths for a single day.
 
@@ -173,8 +207,6 @@ class DayManager(SolverManager):
             
             axis_obliquity = np.deg2rad(24.936)
             subsolar_latitude = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
-
-            times = np.linspace(0, SOL_HRS, self.num_points)
 
             solar_intensities = np.zeros((self.num_points))
             solar_altitudes = np.zeros((self.num_points))
@@ -211,9 +243,59 @@ class DayManager(SolverManager):
                 solar_altitudes[point] = solar_altitude
                 solar_azimuths[point] = solar_azimuth
             
-            return(times, solar_intensities, solar_altitudes, solar_azimuths)
+            return(solar_intensities, solar_altitudes, solar_azimuths)
 
-        
+        def generate_temperatures(self, times, T_peak, T_min, time_peak):
+            """
+            Generate the temperatures at each point in the day - can be called with either ground or ambient
+
+            Model used is a sinusoidal fit during the day, rising from a minimum at sunset to a maximum
+                either at local noon, or time_peak if set
+            Between sunset and sunrise, a linear fit is used to bridge the temperatures.
+            This approximately matches the data from [4]
+            """
+            
+            axis_obliquity = np.deg2rad(24.936)
+            solar_declination = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
+
+            time_sunrise = (SOL_HRS / (2 * np.pi)) * np.arccos(-np.tan(self.latitude) * np.tan(solar_declination))
+            time_sunset = SOL_HRS - time_sunrise
+
+            # Setting up amplitude for the sine wave
+            T_sine_peak = T_peak
+            T_sine_trough = (T_min - T_sine_peak * np.sin((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS)) / (
+                np.sin((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS) - 1)
+            
+            def T_sinusoid(time):
+                T = (T_sine_peak - T_sine_trough) * (np.sin((time - time_peak) * 2 * np.pi / SOL_HRS)) + T_sine_trough
+                return(T)
+
+            # Set up parameters for the linear fit
+            T_sunset = T_sinusoid(time_sunset)
+            T_sunrise = T_min
+            T_midnight = (T_sunset + T_sunrise) / 2
+
+            def T_linear(time):
+                if time > time_sunset:
+                    T = (T_sunset - T_midnight) * ((SOL_HRS - time) / (SOL_HRS - time_sunset)) + T_midnight
+                else:
+                    T = (T_midnight - T_sunrise) * (time / time_sunrise) + T_sunrise
+                return(T)
+            
+            temps = np.zeros((len(times)))
+
+            for point, time in enumerate(times):
+                if time > time_sunrise  and T < time_sunset:
+                    # Time is during the day
+                    T = T_sinusoid(time)
+                else:
+                    T = T_linear(time)
+                
+                temps[point] = T
+            
+            return(temps)
+
+            
 
 
 
