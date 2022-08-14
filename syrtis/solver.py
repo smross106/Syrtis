@@ -25,19 +25,18 @@ class Solver:
         self.report = {}
         self.thermal_energy = 0
 
-    def solve(self, verbose=False):
+    def solve(self):
         if self.configuration.solution_type == "constant temperature":
-            if verbose:
-                self.iterate_constant_temperature(verbose=True)
-                return(self.heat, self.report)
-            else:
-                self.iterate_constant_temperature(verbose=False)
-                return(self.heat, self.report)
-        else:
-            print("Constant power not implemented yet")
+            self.iterate_constant_temperature()
+        elif self.configuration.solution_type == "constant power":
+            self.iterate_constant_power()
 
-    def iterate_constant_temperature(self, verbose=False):
-
+    def iterate_constant_temperature(self):
+        """
+        Iterate to find the correct properties for a constant inner wall temperature
+        Requires a back-and-forth between conduction power loss and external power loss, which must be balanced
+        Typically slower
+        """
         T_internal_start = self.configuration.T_habitat
         Q_internal_flux = 1000
         
@@ -57,8 +56,6 @@ class Solver:
 
             Q_external_flux = self.external_losses(new_shell_temperatures[-1], R_wall)
 
-            #print(current_error, Q_loss, Q_wall, new_shell_temperatures[-1])
-
             new_error = abs(Q_internal_flux - Q_external_flux) / Q_internal_flux
             current_error = new_error
             iterations += 1
@@ -70,10 +67,10 @@ class Solver:
             print("Did not converge " + str(abs(current_error)))
             return(np.nan)
         else:
-            if verbose:
-                self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
+            self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
 
             self.shell_temperatures = shell_temperatures
+            self.report["Inner wall temperature"] = shell_temperatures[0]
             self.heat = Q_external_flux
         
         """inputs = [*[Q_internal_flux], *shell_temperatures]
@@ -90,11 +87,57 @@ class Solver:
 
         return(Q_internal_flux)"""
     
-    def iterate_constant_power(self, verbose=False):
+    def iterate_constant_power(self):
         """
         Iterate to find the shell temperatures when power loss from the habitat is constant
         """
-        pass
+        Q_target = self.configuration.Q_habitat
+        T_internal_start = 298
+        T_internal = T_internal_start
+        shell_temperatures, R_wall = self.generate_initial_state(T_internal_start)
+        Q_loss = 0
+        external_temperature = min(self.configuration.T_ground, self.configuration.T_air)
+
+        current_error = 1
+
+        cutoff_ratio = 1e-10
+        target_iterations = 1750
+
+        iterations = 0
+
+        while (abs(current_error) > cutoff_ratio) and iterations < target_iterations:
+            Q_loss = self.external_losses(shell_temperatures[-1], R_wall)
+
+            current_error = abs((Q_target - Q_loss) / Q_target)
+
+            if Q_loss < Q_target:
+                # Actual and target power have the sign, but power loss is too low
+                # External shell temperature needs to be increased
+                shell_temperatures[-1] *= (1 + 0.02*current_error)
+            elif Q_loss > Q_target:
+                # Actual and target power have the sign, but power loss is too high
+                # External shell temperature needs to be decreased
+                shell_temperatures[-1] *= (1 - 0.02*current_error)
+            
+            new_shell_temperatures, R_wall = self.conduction_temperatures(shell_temperatures, Q_target)
+
+            shell_temperatures = new_shell_temperatures
+
+            #if iterations%10==0:print(shell_temperatures[0], shell_temperatures[-1], Q_loss, Q_target, current_error, R_wall)
+
+            iterations += 1
+
+        if (abs(current_error) > cutoff_ratio):
+            print("Did not converge " + str(abs(current_error)))
+            return(np.nan)
+        else:
+            self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
+            
+            self.report["Inner wall temperature"] = shell_temperatures[0]
+            self.report["Outer wall temperature"] = shell_temperatures[-1]
+
+            self.shell_temperatures = shell_temperatures
+            self.heat = Q_target
 
     def verify_temperatures(self, shell_temperatures):
         """
@@ -149,10 +192,12 @@ class Solver:
 
             return(error)
 
-    def generate_initial_state(self, T_internal_start):
+    def generate_initial_state(self, T_internal_start, T_external_start=0):
         # Assume there are (N+1) Shells, set the outermost - not attached to any physical Shell has temperature equal to outside air
         # The rest are linearly spaced up to the internal temperature
-        T_external_start = self.configuration.T_air
+        if T_external_start == 0:
+            T_external_start = self.configuration.T_air
+
         N_temperatures = len(self.habitat._shells) + 1
 
         T_external_wall = ((T_internal_start - T_external_start) / (N_temperatures + 1)) + T_external_start
@@ -162,6 +207,9 @@ class Solver:
         return(initial_shell_temperatures, 1)
 
     def conduction_temperatures(self, shell_temperatures, Q):
+        """
+        Find the updated temperatures across the habitat wall, based on a set of starting temperatures and the heat flux
+        """
         
         wall_resistances = self.habitat.build_thermal_resistances(shell_temperatures, self.configuration.GRAVITY)
 
@@ -173,24 +221,30 @@ class Solver:
         # The temperatures throughout the rest of the Shells are found with the thermal resistances
 
         if self.configuration.solution_type == "constant temperature":
-            internal_temperature = self.configuration.T_habitat
-        else:
-            internal_temperature = shell_temperatures[0]
+            # Iterate outwards from the inside to the outside - appropriate for a constant-temperature type solution
+            updated_shell_temperatures[0] = self.configuration.T_habitat
 
-        updated_shell_temperatures[0] = internal_temperature
+            for shell_count in range(1,len(wall_resistances)+1):
 
-        for shell_count in range(1,len(wall_resistances)+1):
+                shell_temperature = updated_shell_temperatures[shell_count-1] - wall_resistances[shell_count-1] * Q
+    
+                if shell_temperature < 0:
+                    shell_temperature = shell_temperatures[shell_count]
 
-            shell_temperature = updated_shell_temperatures[shell_count-1] - wall_resistances[shell_count-1] * Q
- 
-            if shell_temperature < 0:
-                #print("Shell temperature error ", str(shell_temperature))
-                shell_temperature = shell_temperatures[shell_count]
+                updated_shell_temperatures[shell_count] = shell_temperature
+    
+        elif self.configuration.solution_type == "constant power":
+            # Assume the outermost shell temperature is correct and iterate inwards
+            updated_shell_temperatures[-1] = shell_temperatures[-1]
+
+            for shell_count in reversed(range(0, len(wall_resistances))):
+                shell_temperature = updated_shell_temperatures[shell_count+1] + wall_resistances[shell_count] * Q
+
+                if shell_temperature < 0:
+                    shell_temperature = shell_temperatures[shell_count]
                 
-                #break
+                updated_shell_temperatures[shell_count] = shell_temperature
 
-            updated_shell_temperatures[shell_count] = shell_temperature
-        
         return(updated_shell_temperatures, total_resistance)
     
     def external_losses(self, wall_temperature, thermal_resistance_wall, verbose=False):
