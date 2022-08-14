@@ -1,13 +1,23 @@
 """
 Object for sweeping through different parameters in the Solver
 
+References:
+ - [1] - A solar azimuth formula that renders circumstantial treatment unnecessary without compromising mathematical rigor: 
+        Mathematical setup, application and extension of a formula based on the subsolar point and atan2 function, Zhang et al 2021
+ - [2] - Über die Extinktion des Lichtes in der Erdatmosphäre, Schoenberg 1929
+ - [3] - Mars Fact Sheet, https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html
+ - [4] - Thermal control of MSL Rover "Curiosity" using an Active Fluid Loop, Birur 2013 
 """
-from itertools import product
 import numpy as np
 import copy
 
 from syrtis.configuration import Configuration
 from syrtis.solver import Solver
+
+SOL_HRS = 24.64
+MARS_RADIUS = 3396.2e3
+MARS_ATMOSPHERE_OPTICAL_HEIGHT = 8624
+
 
 class SolverManager:
     pass
@@ -117,7 +127,7 @@ class ConfigurationManager(SolverManager):
         else:
             return(self.each_configuration_inputs_dicts, heat_losses)
 
-class TimeManager(SolverManager):
+class DayManager(SolverManager):
     """
     Calculate heat flux at each point in a day
     
@@ -128,7 +138,7 @@ class TimeManager(SolverManager):
     """
     def __init__(self, habitat, configuration, num_points,
         atmosphere_tau, latitude, areocentric_longitude,
-        T_air_peak, T_air_night, T_ground_peak, T_ground_night, time_air_peak=13, time_ground_peak=15):
+        T_air_max, T_air_min, T_ground_max, T_ground_min, time_air_peak=12, time_ground_peak=12):
 
         self.habitat = habitat
         self.configuration = configuration
@@ -138,10 +148,10 @@ class TimeManager(SolverManager):
         self.latitude = latitude
         self.areocentric_longitude = areocentric_longitude
 
-        self.T_air_peak = T_air_peak
-        self.T_air_night = T_air_night
-        self.T_ground_peak = T_ground_peak
-        self.T_ground_night = T_ground_night
+        self.T_air_max = T_air_max
+        self.T_air_min = T_air_min
+        self.T_ground_max = T_ground_max
+        self.T_ground_min = T_ground_min
 
         self.time_air_peak = time_air_peak
         self.time_ground_peak = time_ground_peak
@@ -150,3 +160,62 @@ class TimeManager(SolverManager):
         mars_ecc = 0.093377
         self.solar_intensity_space = 590 * np.power(
             (1 + mars_ecc * np.cos(self.areocentric_longitude - 248)) / (1 - mars_ecc), 2)
+        
+        def generate_solar_data(self):
+            """
+            Generate lists of solar intensities, altitudes and azimuths for a single day.
+
+            Solar position implements method from Reference [1] with necessary modifications for Martian orbital parameters.
+
+            Martian atmospheric optimal height, for use in calculation from Source [2]. Calculation is based on constant-density
+            hydrostatic argument, with data taken from [3]
+            """
+            
+            axis_obliquity = np.deg2rad(24.936)
+            subsolar_latitude = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
+
+            times = np.linspace(0, SOL_HRS, self.num_points)
+
+            solar_intensities = np.zeros((self.num_points))
+            solar_altitudes = np.zeros((self.num_points))
+            solar_azimuths = np.zeros((self.num_points))
+
+
+            for point in range(self.num_points):
+                subsolar_longitude = np.deg2rad(-15 * (times[point] - (SOL_HRS/2)))
+
+                Sx = np.cos(subsolar_latitude) * np.sin(subsolar_longitude)
+                Sy = (np.cos(self.latitude) * np.sin(subsolar_latitude)) - (
+                    np.sin(self.latitude) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
+                Sz = (np.sin(self.latitude) * np.sin(subsolar_latitude)) + (
+                    np.cos(self.latitude) * np.cos(subsolar_latitude) * np.cos(subsolar_longitude))
+
+                solar_altitude = np.rad2deg(np.arcsin(Sz))
+                solar_azimuth_south_clockwise = np.rad2deg(np.arctan2(-Sx, Sy))
+                solar_azimuth = solar_azimuth_south_clockwise + self.configuration.solar_azimuth
+
+
+                # Calculate relative air mass for scaling the optical depth of the atmosphere
+                relative_air_mass = np.sqrt(np.power(MARS_RADIUS + MARS_ATMOSPHERE_OPTICAL_HEIGHT, 2) - 
+                    np.power(MARS_RADIUS * np.cos(np.deg2rad(solar_altitude)), 2)) - MARS_RADIUS * np.sin(np.deg2rad(solar_altitude))
+                relative_air_mass /= MARS_ATMOSPHERE_OPTICAL_HEIGHT
+
+                optical_depth = np.exp(np.e, - self.atmosphere_tau * relative_air_mass)
+
+                solar_intensity = self.solar_intensity_space * optical_depth
+
+                if solar_altitude < 0:
+                    solar_intensity = 0
+
+                solar_intensities[point] = solar_intensity
+                solar_altitudes[point] = solar_altitude
+                solar_azimuths[point] = solar_azimuth
+            
+            return(times, solar_intensities, solar_altitudes, solar_azimuths)
+
+        
+
+
+
+
+
