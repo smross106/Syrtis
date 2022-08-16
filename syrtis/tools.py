@@ -125,10 +125,9 @@ def plot_power_balance(heat_reports, labels):
 
         
     plt.xticks(x, labels) 
+    plt.axhline(0, color='black')
 
     plt.ylabel("Heat loss into habitat (W) - positive=loss")   
-
-    plt.axhline(0, color='black')
     
     plt.legend(bbox_to_anchor = (1.05, 0.6))
     
