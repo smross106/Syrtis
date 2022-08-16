@@ -212,7 +212,7 @@ class DayManager(SolverManager):
         subsolar_latitude = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
 
         solar_intensity_space = 590 * np.power(
-        (1 + MARS_ECC * np.cos(self.areocentric_longitude - 248)) / (1 - MARS_ECC), 2)
+        (1 + MARS_ECC * np.cos(np.deg2rad(self.areocentric_longitude - 248))) / (1 - MARS_ECC), 2)
 
         solar_intensities = np.zeros((self.num_points))
         solar_altitudes = np.zeros((self.num_points))

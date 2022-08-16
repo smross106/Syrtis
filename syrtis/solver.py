@@ -357,7 +357,7 @@ class Solver:
         if verbose:
             self.report["Total heat flux out"] = Q_total
             self.report["Outer wall temperature"] = wall_temperature
-            self.report["Convectuve loss from cylinder"] = Q_wall
+            self.report["Convective loss from cylinder"] = Q_wall
             self.report["Convective loss from endcap"] = Q_endcap
             self.report["Radiative loss to sky"] = Q_rad_sky_out
             self.report["Radiative loss to ground"] = Q_rad_ground_out
