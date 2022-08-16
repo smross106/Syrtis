@@ -364,7 +364,7 @@ class Solver:
             self.report["Radiative gain from sky"] = Q_rad_sky_in
             self.report["Radiative gain from ground"] = Q_rad_ground_in
             self.report["Direct solar gain"] = Q_solar_direct
-            self.report["Indirect solar gain"] = Q_solar_indirect
+            self.report["Reflected solar gain"] = Q_solar_indirect
             self.report["Conduction loss to ground"] = Q_conduction
         else:
             return(Q_total)

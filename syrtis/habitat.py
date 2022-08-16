@@ -762,7 +762,7 @@ class Habitat:
             Q_solar_direct = solar_intensity * solar_intensity_multipler * direct_lit_area * self._shells[-1].material.absorb
         
         # A negative sign is used for consistency with convention that +ve Q = heat loss
-        return(-Q_solar_direct)
+        return(-abs(Q_solar_direct))
     
     def solar_gain_indirect(self, solar_altitude, solar_azimuth, solar_intensity, albedo_ground):
         """

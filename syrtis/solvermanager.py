@@ -275,8 +275,6 @@ class DayManager(SolverManager):
         T_sine_trough = (T_min - T_sine_peak * np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS)) / (
             1 - np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS))
         
-        print(time_sunrise, time_sunset, T_sine_peak, T_sine_trough)
-        
         def T_sinusoid(time):
             T = (T_sine_peak - T_sine_trough) * (np.cos((time - time_peak) * 2 * np.pi / SOL_HRS)) + T_sine_trough
             return(T)
