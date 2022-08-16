@@ -17,7 +17,8 @@ References:
 """
 
 import numpy as np
-from numbers import Number
+from random import choice
+import matplotlib.patches as patches
 
 
 if __name__ == "__main__":
@@ -61,6 +62,134 @@ class Habitat:
 
         self.verified = False
     
+    def draw(self,size=(20,20)):
+        """
+        Sets up a matplotlib object to draw the Habitat
+        """
+        self.verify_geometry()
+
+        fig = plt.figure(figsize=size)
+
+        if self.orientation == "horizontal":
+            max_x = self.radius_outer * 1.25
+            max_y = self.radius_outer * 1.25
+            if self.endcap_type == "hemisphere":
+                max_z = (self.length / 2) + (self.radius_outer * 1.25)
+            else:
+                max_z = (self.length / 2) * 1.25
+        elif self.orientation == "vertical":
+            max_x = self.radius_outer * 1.25
+            if self.endcap_type == "hemisphere":
+                max_y = (self.length / 2) + (self.radius_outer * 1.25)
+            else:
+                max_y = (self.length / 2) * 1.25
+            max_z = self.radius_outer
+        spec = fig.add_gridspec(2, 2)
+
+        side_view = fig.add_subplot(spec[0, 0], aspect="equal")
+        top_view = fig.add_subplot(spec[0, 1], aspect="equal")
+        section = fig.add_subplot(spec[1,:],aspect="equal")
+        #section = fig.add_subplot(spec[1,:], projection='polar')
+
+
+        side_view.set_xlim(-max_x, max_x)
+        side_view.set_ylim(-max_y, max_y)
+        side_view.title.set_text("Elevation section view")
+
+        top_view.set_xlim(-max_x, max_x)
+        top_view.set_ylim(-max_z, max_z)
+        top_view.title.set_text("Plan section view")
+
+        section.set_xlim(-0.2 * max_x, 0.2 * max_x)
+        section.set_ylim(0.9*self._shells[0].radius_outer, max_x*0.85)
+        section.title.set_text("Wall cross-section detail")
+
+        # Martian atmosphere
+        side_view.fill_between(x=[-max_x, max_x], 
+            y1=[max_y,max_y],
+            y2=[-max_y, -max_y],
+            color="#FFBEA0")
+
+        # Ground level
+        if self.groundlevel != None:
+            if self.groundlevel.habitat_axis_height == 1e3:
+                side_view.fill_between(x=[-max_x, max_x], 
+                y1=[-0.9*max_y, -0.9*max_y],
+                y2=[-max_y, -max_y],
+                color="#BE4628")
+            else:
+                if self.orientation == "horizontal":
+                    side_view.fill_between(x=[-max_x, max_x], 
+                    y1=[-self.groundlevel.habitat_axis_height, -self.groundlevel.habitat_axis_height],
+                    y2=[-max_y, -max_y],
+                    color="#BE4628")
+                elif self.orientation == "vertical":
+                    side_view.fill_between(x=[-max_x, max_x], 
+                    y1=[-self.length/2 - self.groundlevel.habitat_axis_height, -self.length/2 - self.groundlevel.habitat_axis_height],
+                    y2=[-max_y, -max_y],
+                    color="#BE4628")
+
+        top_view.set_facecolor("#BE4628")
+        
+
+        for shell_count, shell in enumerate(reversed(self._shells)):
+            col = choice(["r", "b", "g", "c", "y"])
+            if "steel" in shell.material.name:
+                col = "#777777"
+            elif "aluminium" in shell.material.name:
+                col = "#999999"
+            elif "STP Air" in shell.material.name:
+                col = "#87CEEB"
+            elif "plastic" in shell.material.name:
+                col = "b"
+            elif "foam" in shell.material.name:
+                col = "#333333"
+            elif "CO2" in shell.material.name:
+                col = "#FFA073"
+            
+            # Small section
+            circ = plt.Circle([0, 0], shell.radius_outer, color=col)
+
+            # Side section
+            rect = patches.Rectangle([-shell.radius_outer, -shell.length/2], 2*shell.radius_outer, shell.length, color=col)
+
+            # Endcaps
+            if self.endcap_type == "hemisphere":
+                endcap_1 = plt.Circle([0, -shell.length/2], shell.radius_outer, color=col)
+                endcap_2 = plt.Circle([0, shell.length/2], shell.radius_outer, color=col)
+
+            elif self.endcap_type == "flat" and shell.radius_inner != 0:
+                endcap_thickness = sum(shell.thickness for shell in self._shells[1:len(self._shells) - shell_count])
+                endcap_1 = patches.Polygon([
+                    [-shell.radius_outer, -shell.length/2], [-0.2*shell.radius_outer, -shell.length/2 - endcap_thickness], 
+                    [0.2*shell.radius_outer, -shell.length/2 - endcap_thickness], [shell.radius_outer, -shell.length/2]],
+                    color=col)
+
+                endcap_2 = patches.Polygon([
+                    [-shell.radius_outer, shell.length/2], [-0.2*shell.radius_outer, shell.length/2 + endcap_thickness], 
+                    [0.2*shell.radius_outer, shell.length/2 + endcap_thickness], [shell.radius_outer, shell.length/2]],
+                    color=col)
+
+            if self.orientation == "horizontal":
+                side_view.add_patch(circ)
+
+                
+                top_view.add_patch(endcap_1)
+                top_view.add_patch(endcap_2)
+                top_view.add_patch(rect)
+            
+            elif self.orientation == "vertical":
+                top_view.add_patch(circ)
+
+                
+                side_view.add_patch(endcap_1)
+                side_view.add_patch(endcap_2)
+                side_view.add_patch(rect)
+
+            # Wedge
+            wedge = plt.Circle([0, 0], shell.radius_outer, color=col)
+            section.add_patch(wedge)
+        
     def create_static_shell(self, material, thickness, thermal_resistance=0, parallel_thermal_resistance=0):
         """
         Create a StaticShell that conforms around the outside of the outermost one
