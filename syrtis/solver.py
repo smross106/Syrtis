@@ -25,9 +25,9 @@ class Solver:
         self.shell_temperatures = []
         self.report = {
                 "Name":       self.name,
-                "Total heat flux out": 0,
-                "Outer wall temperature": 0,
-                "Inner wall temperature": 0,
+                "Total heat flux out": np.nan,
+                "Outer wall temperature": np.nan,
+                "Inner wall temperature": np.nan,
                 "Convective loss from cylinder": 0,
                 "Convective loss from endcap": 0,
                 "Radiative loss to sky": 0,
@@ -108,23 +108,29 @@ class Solver:
         Iterate to find the shell temperatures when power loss from the habitat is constant
         """
         Q_target = self.configuration.Q_habitat
-        T_internal_start = 298
-        T_internal = T_internal_start
+        T_internal_start = 273
         shell_temperatures, R_wall = self.generate_initial_state(T_internal_start)
         Q_loss = 0
-        external_temperature = min(self.configuration.T_ground, self.configuration.T_air)
 
         current_error = 1
 
-        cutoff_ratio = 1e-10
-        target_iterations = 1750
+        cutoff_ratio = 1e-5
+        target_iterations = 2750
 
         iterations = 0
 
         while (abs(current_error) > cutoff_ratio) and iterations < target_iterations:
             Q_loss = self.external_losses(shell_temperatures[-1], R_wall)
 
-            current_error = abs((Q_target - Q_loss) / Q_target)
+            if Q_target != 0:
+                current_error = abs((Q_target - Q_loss) / Q_target)
+            else:
+                current_error = abs(Q_loss) / 1000
+            
+            if current_error > 49:
+                current_error = 49
+            elif current_error < -49:
+                current_error = -49
 
             if Q_loss < Q_target:
                 # Actual and target power have the sign, but power loss is too low
@@ -133,7 +139,7 @@ class Solver:
             elif Q_loss > Q_target:
                 # Actual and target power have the sign, but power loss is too high
                 # External shell temperature needs to be decreased
-                shell_temperatures[-1] *= (1 - 0.02*current_error)
+                shell_temperatures[-1] /= (1 + 0.02*current_error)
             
             new_shell_temperatures, R_wall = self.conduction_temperatures(shell_temperatures, Q_target)
 
@@ -144,7 +150,7 @@ class Solver:
             iterations += 1
 
         if (abs(current_error) > cutoff_ratio):
-            print("Did not converge " + str(abs(current_error)))
+            print("Did not converge " + str(abs(current_error)), shell_temperatures, Q_loss)
             self.heat = np.nan
             return(np.nan)
         else:
@@ -219,6 +225,7 @@ class Solver:
         T_external_wall = ((T_internal_start - T_external_start) / (N_temperatures + 1)) + T_external_start
         
         initial_shell_temperatures = np.linspace(T_internal_start, T_external_wall, N_temperatures)
+
 
         return(initial_shell_temperatures, 1)
 
