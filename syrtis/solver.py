@@ -3,6 +3,7 @@ Contains the Object which solves for a given Habitat and Configuration
 
 """
 from scipy.optimize import minimize
+import copy
 
 from syrtis.habitat import *
 from syrtis.configuration import *
@@ -22,8 +23,23 @@ class Solver:
 
         self.heat = 0
         self.shell_temperatures = []
-        self.report = {}
+        self.report = {
+                "Name":       self.name,
+                "Total heat flux out": 0,
+                "Outer wall temperature": 0,
+                "Inner wall temperature": 0,
+                "Convective loss from cylinder": 0,
+                "Convective loss from endcap": 0,
+                "Radiative loss to sky": 0,
+                "Radiative loss to ground": 0,
+                "Radiative gain from sky": 0,
+                "Radiative gain from ground": 0,
+                "Direct solar gain": 0,
+                "Reflected solar gain": 0,
+                "Conduction loss to ground": 0
+            }
         self.thermal_energy = 0
+
 
     def solve(self):
         if self.configuration.solution_type == "constant temperature":
@@ -67,7 +83,7 @@ class Solver:
             print("Did not converge " + str(abs(current_error)))
             return(np.nan)
         else:
-            self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
+            self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
 
             self.shell_temperatures = shell_temperatures
             self.report["Inner wall temperature"] = shell_temperatures[0]
@@ -129,12 +145,12 @@ class Solver:
 
         if (abs(current_error) > cutoff_ratio):
             print("Did not converge " + str(abs(current_error)))
+            self.heat = np.nan
             return(np.nan)
         else:
-            self.report = self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
+            self.external_losses(shell_temperatures[-1], R_wall, verbose=True)
             
             self.report["Inner wall temperature"] = shell_temperatures[0]
-            self.report["Outer wall temperature"] = shell_temperatures[-1]
 
             self.shell_temperatures = shell_temperatures
             self.heat = Q_target
@@ -210,7 +226,7 @@ class Solver:
         """
         Find the updated temperatures across the habitat wall, based on a set of starting temperatures and the heat flux
         """
-        
+
         wall_resistances = self.habitat.build_thermal_resistances(shell_temperatures, self.configuration.GRAVITY)
 
         total_resistance = sum(wall_resistances)
@@ -228,7 +244,7 @@ class Solver:
 
                 shell_temperature = updated_shell_temperatures[shell_count-1] - wall_resistances[shell_count-1] * Q
     
-                if shell_temperature < 0:
+                if shell_temperature <= 0:
                     shell_temperature = shell_temperatures[shell_count]
 
                 updated_shell_temperatures[shell_count] = shell_temperature
@@ -240,8 +256,10 @@ class Solver:
             for shell_count in reversed(range(0, len(wall_resistances))):
                 shell_temperature = updated_shell_temperatures[shell_count+1] + wall_resistances[shell_count] * Q
 
-                if shell_temperature < 0:
-                    shell_temperature = shell_temperatures[shell_count]
+                if shell_temperature <= 0:
+                    # This means power loss is too high for the wall geometry used
+                    updated_shell_temperatures = [shell_temperatures[0] for i in shell_temperatures]
+                    break
                 
                 updated_shell_temperatures[shell_count] = shell_temperature
 
@@ -337,22 +355,17 @@ class Solver:
         Q_conduction)
         
         if verbose:
-
-            reporting_dict = {
-                "ID":       self.name,
-                "Total heat flux out": Q_total,
-                "Outer wall temperature": wall_temperature,
-                "Convective loss from cylinder": Q_wall,
-                "Convective loss from endcap": Q_endcap,
-                "Radiative loss to sky": Q_rad_sky_out,
-                "Radiative loss to ground": Q_rad_ground_out,
-                "Radiative gain from sky": Q_rad_sky_in,
-                "Radiative gain from ground": Q_rad_ground_in,
-                "Direct solar gain": Q_solar_direct,
-                "Reflected solar gain": Q_solar_indirect,
-                "Conduction loss to ground": Q_conduction
-            }
-            return(reporting_dict)
+            self.report["Total heat flux out"] = Q_total
+            self.report["Outer wall temperature"] = wall_temperature
+            self.report["Convectuve loss from cylinder"] = Q_wall
+            self.report["Convective loss from endcap"] = Q_endcap
+            self.report["Radiative loss to sky"] = Q_rad_sky_out
+            self.report["Radiative loss to ground"] = Q_rad_ground_out
+            self.report["Radiative gain from sky"] = Q_rad_sky_in
+            self.report["Radiative gain from ground"] = Q_rad_ground_in
+            self.report["Direct solar gain"] = Q_solar_direct
+            self.report["Indirect solar gain"] = Q_solar_indirect
+            self.report["Conduction loss to ground"] = Q_conduction
         else:
             return(Q_total)
     

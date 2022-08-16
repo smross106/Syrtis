@@ -45,13 +45,11 @@ class SolverManager:
             solver = Solver(str(self.each_configuration_inputs_dicts[configuration_index]["name"]),
                 self.habitat, configuration)
             
-            solver.solve(verbose=True)
+            solver.solve()
             heat_losses.append(solver.heat)
             reports.append(solver.report)
             completed_solvers.append(solver)
             
-        
-        
         self.heat_losses = heat_losses
         self.reports = reports
         self.completed_solvers = completed_solvers
@@ -269,13 +267,15 @@ class DayManager(SolverManager):
         axis_obliquity = np.deg2rad(24.936)
         solar_declination = np.arcsin(np.sin(axis_obliquity) * np.sin(np.deg2rad(self.areocentric_longitude)))
 
-        time_sunrise = (SOL_HRS / (2 * np.pi)) * np.arccos(-np.tan(self.latitude) * np.tan(solar_declination))
+        time_sunrise = (SOL_HRS / (2 * np.pi)) * np.arccos(-np.tan(np.deg2rad(self.latitude)) * np.tan(solar_declination))
         time_sunset = SOL_HRS - time_sunrise
 
         # Setting up amplitude for the cos wave
         T_sine_peak = T_peak 
         T_sine_trough = (T_min - T_sine_peak * np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS)) / (
             1 - np.cos((time_sunrise - time_peak) * 2 * np.pi / SOL_HRS))
+        
+        print(time_sunrise, time_sunset, T_sine_peak, T_sine_trough)
         
         def T_sinusoid(time):
             T = (T_sine_peak - T_sine_trough) * (np.cos((time - time_peak) * 2 * np.pi / SOL_HRS)) + T_sine_trough
@@ -294,6 +294,7 @@ class DayManager(SolverManager):
             return(T)
         
         temps = np.zeros((self.num_points))
+
 
         for point, time in enumerate(self.times):
             if time > time_sunrise and time < time_sunset:
