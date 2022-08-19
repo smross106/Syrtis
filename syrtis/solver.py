@@ -299,7 +299,7 @@ class Solver:
                 convective = False
                 solar = False
                 radiative = False
-            elif self.habitat.orientation == "vertical" and self.groundlevel.habitat_axis_height < -(
+            elif self.habitat.orientation == "vertical" and self.habitat.groundlevel.habitat_axis_height < -(
                 self.habitat.length_outer + self.habitat.radius_outer):
                 convective = False
                 solar = False
