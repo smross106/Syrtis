@@ -13,7 +13,7 @@ setuptools.setup(
     version = "0.1.0",                        
     author = "Sam Ross",                     
     author_email = "smross106@gmail.com",
-    license = "AGPL-3.0",
+    license = "MIT",
     description = "Thermal solver for crewed Martian habitats",
     keywords = ["habitat", "thermal", "mars", "heat"],
     long_description=long_description,      # Long description read from the the readme file
@@ -22,7 +22,7 @@ setuptools.setup(
     classifiers=[
         "Development Status :: 4 - Beta"
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: GNU Affero General Public License v3",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Intended Audience :: Science/Research",
         "Topic :: Scientific/Engineering"
