@@ -285,52 +285,75 @@ class Solver:
         Q_solar_indirect = 0
         Q_conduction = 0
 
-        if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
-            self.habitat.orientation == "vertical"):
-            Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
-                                                            self.configuration.v_air,
-                                                            self.configuration.T_air,
-                                                            wall_temperature)
+        convective = True
+        solar = True
+        radiative = True
+        conductive = False
+
+        if self.configuration.v_air == 0:
+            convective = False
+        if self.habitat.groundlevel != None:
+            if self.habitat.orientation == "horizontal" and self.groundlevel.habitat_axis_height < -self.habitat.radius_outer:
+                convective = False
+                solar = False
+                radiative = False
+            elif self.habitat.orientation == "vertical" and self.groundlevel.habitat_axis_height < -(
+                self.habitat.length_outer + self.habitat.radius_outer):
+                convective = False
+                solar = False
+                radiative = False
+        else:
+            conductive = True
+
+        if self.habitat.earthworks != None:
+            if self.habitat.earthworks.axis_height_from_ground + self.habitat.radius_outer > (2 * self.habitat.earthworks.radius_inner):
+                solar = False
+
+
+        if convective:
+            if (self.configuration.air_direction == "cross" and self.habitat.orientation == "horizontal") or (
+                self.habitat.orientation == "vertical"):
+                Q_wall = self.habitat.convective_loss_cylinder_cross(self.configuration.air, 
+                                                                self.configuration.v_air,
+                                                                self.configuration.T_air,
+                                                                wall_temperature)
+                
+                Q_endcap = self.habitat.convective_loss_endcap_cross(self.configuration.air, 
+                                                                self.configuration.v_air,
+                                                                self.configuration.T_air,
+                                                                wall_temperature)
             
-            Q_endcap = self.habitat.convective_loss_endcap_cross(self.configuration.air, 
-                                                            self.configuration.v_air,
-                                                            self.configuration.T_air,
-                                                            wall_temperature)
-        
-        elif (self.configuration.air_direction == "axial" and self.habitat.orientation == "horizontal"):
-            Q_wall = self.habitat.convective_loss_cylinder_axial(self.configuration.air, 
-                                                            self.configuration.v_air,
-                                                            self.configuration.T_air,
-                                                            wall_temperature)
-            
-            Q_endcap = self.habitat.convective_loss_endcap_axial(self.configuration.air, 
-                                                            self.configuration.v_air,
-                                                            self.configuration.T_air,
-                                                            wall_temperature)
+            elif (self.configuration.air_direction == "axial" and self.habitat.orientation == "horizontal"):
+                Q_wall = self.habitat.convective_loss_cylinder_axial(self.configuration.air, 
+                                                                self.configuration.v_air,
+                                                                self.configuration.T_air,
+                                                                wall_temperature)
+                
+                Q_endcap = self.habitat.convective_loss_endcap_axial(self.configuration.air, 
+                                                                self.configuration.v_air,
+                                                                self.configuration.T_air,
+                                                                wall_temperature)
         
         
         # Sign convention is preserved by functions in Habitat
-        Q_rad_sky_out = self.habitat.radiative_loss_sky(wall_temperature)
-        Q_rad_sky_in = self.habitat.radiative_gain_sky(self.configuration.T_air)
+        if radiative:
+            Q_rad_sky_out = self.habitat.radiative_loss_sky(wall_temperature)
+            Q_rad_sky_in = self.habitat.radiative_gain_sky(self.configuration.T_air)
 
-        Q_rad_ground_out = self.habitat.radiative_loss_ground(wall_temperature)
-        Q_rad_ground_in = self.habitat.radiative_gain_ground(self.configuration.T_ground)
+            Q_rad_ground_out = self.habitat.radiative_loss_ground(wall_temperature)
+            Q_rad_ground_in = self.habitat.radiative_gain_ground(self.configuration.T_ground)
         
-        if self.configuration.solar_altitude > 0:
-            Q_solar_direct = self.habitat.solar_gain_direct(self.configuration.solar_altitude,
-                                                            self.configuration.solar_azimuth,
-                                                            self.configuration.solar_intensity)
-            
-            Q_solar_indirect = self.habitat.solar_gain_indirect(self.configuration.solar_altitude,
-                                                            self.configuration.solar_azimuth,
-                                                            self.configuration.solar_intensity,
-                                                            self.configuration.albedo_ground)
-
-        Q_convective = Q_wall + Q_endcap
-        Q_rad_environment_out = Q_rad_sky_out + Q_rad_ground_out
-        Q_rad_environment_in = Q_rad_sky_in + Q_rad_ground_in
-
-        if self.habitat.groundlevel != None:
+        if solar:
+            if self.configuration.solar_altitude > 0:
+                Q_solar_direct = self.habitat.solar_gain_direct(self.configuration.solar_altitude,
+                                                                self.configuration.solar_azimuth,
+                                                                self.configuration.solar_intensity)
+                
+                Q_solar_indirect = self.habitat.solar_gain_indirect(self.configuration.solar_altitude,
+                                                                self.configuration.solar_azimuth,
+                                                                self.configuration.solar_intensity,
+                                                                self.configuration.albedo_ground)
+        if conductive:
             if self.habitat.groundlevel.thermal_resistance != 0:
                 Q_conduction = self.habitat.conductive_loss_fixed_resistance(wall_temperature,
                                                                             self.configuration.T_ground,
@@ -354,6 +377,10 @@ class Solver:
                     Q_conduction += self.habitat.conductive_loss_disc_steady(wall_temperature,
                                                                             self.configuration.T_ground,
                                                                             self.configuration.k_ground)
+        
+        Q_convective = Q_wall + Q_endcap
+        Q_rad_environment_out = Q_rad_sky_out + Q_rad_ground_out
+        Q_rad_environment_in = Q_rad_sky_in + Q_rad_ground_in
 
 
         Q_total = (Q_convective + 
