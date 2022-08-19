@@ -292,8 +292,10 @@ class Solver:
 
         if self.configuration.v_air == 0:
             convective = False
+
         if self.habitat.groundlevel != None:
-            if self.habitat.orientation == "horizontal" and self.groundlevel.habitat_axis_height < -self.habitat.radius_outer:
+            conductive = True
+            if self.habitat.orientation == "horizontal" and self.habitat.groundlevel.habitat_axis_height < -self.habitat.radius_outer:
                 convective = False
                 solar = False
                 radiative = False
@@ -302,8 +304,6 @@ class Solver:
                 convective = False
                 solar = False
                 radiative = False
-        else:
-            conductive = True
 
         if self.habitat.earthworks != None:
             if self.habitat.earthworks.axis_height_from_ground + self.habitat.radius_outer > (2 * self.habitat.earthworks.radius_inner):
