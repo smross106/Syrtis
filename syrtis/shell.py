@@ -253,15 +253,18 @@ class Earthworks(Shell):
         radius_inner (float):       radius of the inside of the of the cavity (m)
         depth_of_axis (float):      depth below ground level that the central axis of the cavity sits (m) 
                                     if less than radius_inner, the cavity will not be entirely below ground
+        axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
+                                    above the ground
     
     """
-    def __init__(self, radius_inner, depth_of_axis):
+    def __init__(self, radius_inner, depth_of_axis, axis_height_from_ground):
         assert is_numeric(radius_inner, positive=True), "Cavity 'radius_inner' must be a positive number"
         assert is_numeric(depth_of_axis), "Cavity 'depth_of_axis' must be a number"
         assert depth_of_axis > -radius_inner, "Cavity 'depth_of_axis' is too low, cavity does not intersect the ground"
 
         self.radius_inner = radius_inner
         self.depth_of_axis = depth_of_axis
+        self.axis_height_from_ground = axis_height_from_ground
 
         if self.depth_of_axis > self.radius_inner:
             self.exit_strip_width = 0
@@ -269,7 +272,7 @@ class Earthworks(Shell):
             self.exit_strip_width = 2 * self.radius_inner * np.sin(
                 np.arccos(self.depth_of_axis / self.radius_inner))
     
-    def view_factor_ground_cylinder(self, orientation, radius_outer, length_outer, axis_height_from_ground):
+    def view_factor_ground_cylinder(self, orientation, radius_outer, length_outer):
         """
         Calculates the view factor from a cylinder inside the Earthworks to the ground 
             (including the inner surface of the earthworks)
@@ -278,8 +281,7 @@ class Earthworks(Shell):
             orientation (str):                  one of "horizontal" or "vertical"
             radius_outer (float):               outer radius of the cylinder (m)
             length_outer (float):               length of the cylinder
-            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
-                                                above the ground
+
         """
 
         view_factor_ground = 0
@@ -291,7 +293,7 @@ class Earthworks(Shell):
         elif orientation == "horizontal":
             # Using Equation from [3] for view factor from planar strip to cylinder
             v = self.exit_strip_width / (2 * radius_outer)
-            h = (self.radius_inner + self.depth_of_axis - axis_height_from_ground) / radius_outer
+            h = (self.radius_inner + self.depth_of_axis - self.axis_height_from_ground) / radius_outer
 
             if h > 0:
                 # The top of the habitat is below the top rim of the hole
@@ -307,7 +309,7 @@ class Earthworks(Shell):
                 view_factor_sky_top = np.arctan(v_top / h_top) / np.pi
 
                 # Side boxes
-                w1 = self.radius_inner + self.depth_of_axis - axis_height_from_ground
+                w1 = self.radius_inner + self.depth_of_axis - self.axis_height_from_ground
                 w2 = radius_outer
                 h_side = 1
 
@@ -321,9 +323,9 @@ class Earthworks(Shell):
         elif orientation == "vertical":
 
             exit_strip_radius = self.exit_strip_width / 2
-            D = ((self.radius_inner + self.depth_of_axis) - (axis_height_from_ground + length_outer)) / exit_strip_radius
+            D = ((self.radius_inner + self.depth_of_axis) - (self.axis_height_from_ground + length_outer)) / exit_strip_radius
             Y = 1e10 / exit_strip_radius
-            X = ((self.radius_inner + self.depth_of_axis) - axis_height_from_ground) / exit_strip_radius
+            X = ((self.radius_inner + self.depth_of_axis) - self.axis_height_from_ground) / exit_strip_radius
             L = length_outer / exit_strip_radius
             R = radius_outer / exit_strip_radius
 
@@ -341,7 +343,7 @@ class Earthworks(Shell):
 
                 return(f)
 
-            if self.radius_inner + self.depth_of_axis > (axis_height_from_ground + length_outer):
+            if self.radius_inner + self.depth_of_axis > (self.axis_height_from_ground + length_outer):
                 # The top of the habitat is below the top rim of the hole
                 # A virtual cylinder is drawn at the top of the rim
                 # Equation 8 from [4] is used, with the length of the outer cylinder tending to infinity
@@ -365,7 +367,7 @@ class Earthworks(Shell):
             
         return(view_factor_ground)
 
-    def view_factor_ground_hemisphere(self, orientation, radius_outer, length_outer, axis_height_from_ground):
+    def view_factor_ground_hemisphere(self, orientation, radius_outer, length_outer):
         """
         Calculates the view factor from a hemispherical endcap inside the Earthworks to the ground 
             (including the inner surface of the earthworks)
@@ -374,18 +376,18 @@ class Earthworks(Shell):
             orientation (str):                  one of "horizontal" or "vertical"
             radius_outer (float):               outer radius of the cylinder (m)
             length_outer (float):               length of the cylinder
-            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
-                                                above the ground
         """
         view_factor_ground = 0
 
         if self.depth_of_axis > self.radius_inner:
             # Earthworks has no view to the sky
             view_factor_ground = 1
+        else:
+            return(ValueError("Earthworks not currently configured for open-topped earthworks"))
         
         return(view_factor_ground)
     
-    def view_factor_ground_disc(self, orientation, radius_outer, length_outer, axis_height_from_ground):
+    def view_factor_ground_disc(self, orientation, radius_outer, length_outer):
         """
         Calculates the view factor from a flat endcap inside the Earthworks to the ground 
             (including the inner surface of the earthworks)
@@ -394,18 +396,18 @@ class Earthworks(Shell):
             orientation (str):                  one of "horizontal" or "vertical"
             radius_outer (float):               outer radius of the cylinder (m)
             length_outer (float):               length of the cylinder
-            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
-                                                above the ground
         """
         view_factor_ground = 0
 
         if self.depth_of_axis > self.radius_inner:
             # Earthworks has no view to the sky
             view_factor_ground = 1
+        else:
+            return(ValueError("Earthworks not currently configured for open-topped earthworks"))
         
         return(view_factor_ground)
     
-    def direct_solar_intensity_scaling(self, orientation, radius_outer, length_outer, axis_height_from_ground, solar_altitude, solar_azimuth):
+    def direct_solar_intensity_scaling(self, orientation, radius_outer, length_outer, solar_altitude, solar_azimuth):
         """
         Scales the direct solar intensity based on how much of the habitat can see the Sun at a given value of altitude and azimuth
         Passes value back to solar heat gain functions in Habitat 
@@ -414,8 +416,6 @@ class Earthworks(Shell):
             orientation (str):                  one of "horizontal" or "vertical"
             radius_outer (float):               outer radius of the cylinder (m)
             length_outer (float):               length of the cylinder
-            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
-                                                above the ground
             solar_altitude (float):             vertical angle of the sun above the horizon (degrees)
             solar_azimuth (float):              horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
                                                 assumed that a horizontal habitat lies in the same axis as the Earthworks tunnel
@@ -430,8 +430,10 @@ class Earthworks(Shell):
 
         if self.depth_of_axis > self.radius_inner:
             # Earthworks has no view to the sky
-            solar_multiplier = 1
+            solar_multiplier = 0
             return(solar_multiplier)
+        else:
+            return(ValueError("Earthworks not currently configured for open-topped earthworks"))
 
         angle_over_rim = 0
         
@@ -443,7 +445,7 @@ class Earthworks(Shell):
         
         return(solar_multiplier)
     
-    def indirect_solar_intensity_scaling(self, orientation, radius_outer, length_outer, axis_height_from_ground, solar_altitude, solar_azimuth):
+    def indirect_solar_intensity_scaling(self, orientation, radius_outer, length_outer, solar_altitude, solar_azimuth):
         """
         Scales the indirect solar intensity based on how much of the habitat can see the Sun at a given value of altitude and azimuth
         Passes value back to solar heat gain functions in Habitat 
@@ -452,8 +454,6 @@ class Earthworks(Shell):
             orientation (str):                  one of "horizontal" or "vertical"
             radius_outer (float):               outer radius of the cylinder (m)
             length_outer (float):               length of the cylinder
-            axis_height_from_ground (float):    height of the cylinder axis (horizontal) or bottom of cylinder (vertical)
-                                                above the ground
             solar_altitude (float):             vertical angle of the sun above the horizon (degrees)
             solar_azimuth (float):              horizontal angle of the sun RELATIVE TO HABITAT AXIS (degrees) - 0=directly along axis
                                                 assumed that a horizontal habitat lies in the same axis as the Earthworks tunnel
@@ -464,8 +464,10 @@ class Earthworks(Shell):
 
         if self.depth_of_axis > self.radius_inner:
             # Earthworks has no view to the sky
-            solar_multiplier = 1
+            solar_multiplier = 0
             return(solar_multiplier)
+        else:
+            return(ValueError("Earthworks not currently configured for open-topped earthworks"))
         
         if orientation == "horizontal":
             pass

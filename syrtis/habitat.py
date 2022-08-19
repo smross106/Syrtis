@@ -84,6 +84,7 @@ class Habitat:
             else:
                 max_y = (self.length / 2) * 1.25
             max_z = self.radius_outer
+
         spec = fig.add_gridspec(2, 2)
 
         side_view = fig.add_subplot(spec[0, 0], aspect="equal")
@@ -91,9 +92,17 @@ class Habitat:
         section = fig.add_subplot(spec[1,:],aspect="equal")
         #section = fig.add_subplot(spec[1,:], projection='polar')
 
+        
+        top_y = max_y
+        if self.groundlevel != None and self.groundlevel.habitat_axis_height < -max_y:
+            top_y = -self.groundlevel.habitat_axis_height+0.5
+        if self.earthworks != None:
+            top_y = self.earthworks.radius_inner - self.earthworks.axis_height_from_ground + self.earthworks.depth_of_axis + 2
 
-        side_view.set_xlim(-max_x, max_x)
-        side_view.set_ylim(-max_y, max_y)
+        side_view_max_x = max(top_y, max_x)
+
+        side_view.set_xlim(-side_view_max_x, side_view_max_x)
+        side_view.set_ylim(-max_y, top_y)
         side_view.title.set_text("Elevation section view")
 
         top_view.set_xlim(-max_x, max_x)
@@ -101,35 +110,52 @@ class Habitat:
         top_view.title.set_text("Plan section view")
 
         section.set_xlim(-0.2 * max_x, 0.2 * max_x)
-        section.set_ylim(0.9*self._shells[0].radius_outer, max_x*0.85)
+        section.set_ylim(0.95*self._shells[0].radius_outer, max_x*0.82)
         section.title.set_text("Wall cross-section detail")
 
         # Martian atmosphere
-        side_view.fill_between(x=[-max_x, max_x], 
-            y1=[max_y,max_y],
+        side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
+            y1=[top_y, top_y],
             y2=[-max_y, -max_y],
             color="#FFBEA0")
 
         # Ground level
         if self.groundlevel != None:
             if self.groundlevel.habitat_axis_height == 1e3:
-                side_view.fill_between(x=[-max_x, max_x], 
+                side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
                 y1=[-0.9*max_y, -0.9*max_y],
                 y2=[-max_y, -max_y],
                 color="#BE4628")
+            elif self.earthworks != None:
+                side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
+                y1=[top_y-0.5, top_y-0.5],
+                y2=[-max_y, -max_y],
+                color="#BE4628")
+
             else:
                 if self.orientation == "horizontal":
-                    side_view.fill_between(x=[-max_x, max_x], 
+                    side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
                     y1=[-self.groundlevel.habitat_axis_height, -self.groundlevel.habitat_axis_height],
                     y2=[-max_y, -max_y],
                     color="#BE4628")
                 elif self.orientation == "vertical":
-                    side_view.fill_between(x=[-max_x, max_x], 
+                    side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
                     y1=[-self.length/2 - self.groundlevel.habitat_axis_height, -self.length/2 - self.groundlevel.habitat_axis_height],
                     y2=[-max_y, -max_y],
                     color="#BE4628")
+        elif self.earthworks != None:
+                side_view.fill_between(x=[-side_view_max_x, side_view_max_x], 
+                y1=[top_y-2, top_y-2],
+                y2=[-max_y, -max_y],
+                color="#BE4628")
 
         top_view.set_facecolor("#BE4628")
+
+        # Earthworks if present
+        if self.earthworks != None:
+            earthworks_axis = self.earthworks.radius_inner - self.earthworks.axis_height_from_ground
+            earthworks_circ = plt.Circle([0, earthworks_axis], self.earthworks.radius_inner, color="#FFBEA0")
+            side_view.add_patch(earthworks_circ)
         
 
         for shell_count, shell in enumerate(reversed(self._shells)):
@@ -172,7 +198,6 @@ class Habitat:
 
             if self.orientation == "horizontal":
                 side_view.add_patch(circ)
-
                 
                 top_view.add_patch(endcap_1)
                 top_view.add_patch(endcap_2)
@@ -181,7 +206,6 @@ class Habitat:
             elif self.orientation == "vertical":
                 top_view.add_patch(circ)
 
-                
                 side_view.add_patch(endcap_1)
                 side_view.add_patch(endcap_2)
                 side_view.add_patch(rect)
@@ -207,16 +231,39 @@ class Habitat:
         Create a GroundLevel object
 
         Args:
-        habitat_axis_height (float):        height of the habitat central axis above ground level, for horizontal orientation
-                                            height of the lower end of the cylinder above ground level, for vertical orientation
-                                            Defaults to a large value, indicating no thermal conduction contact (m)
-        thermal_resistance (float):         thermal resistance between Habitat outer wall, default to 0 = no thermal contact (K/W)
+            habitat_axis_height (float):        height of the habitat central axis above ground level, for horizontal orientation
+                                                height of the lower end of the cylinder above ground level, for vertical orientation
+                                                Defaults to a large value, indicating no thermal conduction contact (m)
+            thermal_resistance (float):         thermal resistance between Habitat outer wall, default to 0 = no thermal contact (K/W)
         """
         assert self.groundlevel==None, "A GroundLevel has already been set"
 
         groundlevel = GroundLevel(habitat_axis_height, thermal_resistance)
 
         self.groundlevel = groundlevel
+
+    def create_earthworks(self, radius_inner, depth_of_axis, axis_height_from_ground=None):
+        """
+        Create an Earthworks object for the habitat, to represent a tunnel or similar
+
+        Args:
+            radius_inner (float):               internal radius of the earthworks cylinder (m)
+            depth_of_axis (float):              depth of the central axis of the earthworks cylinder below ground level (m)
+            axis_height_from_ground (float):    height of the habitat axis from the ground (m). 
+                                                Overwritten by a GroundLevel object, if it exists
+        """
+        if self.groundlevel != None:
+            axis_height_from_ground = self.groundlevel.habitat_axis_height
+        
+        habitat_outer_radius = max([shell.radius_outer for shell in self._shells])
+
+        if axis_height_from_ground + habitat_outer_radius > (2 * radius_inner):
+            return(ValueError("Habitat collides with inside of Earthworks. Make the Earthworks bigger or lower the habitat"))
+        
+        if depth_of_axis < radius_inner:
+            return(ValueError("Syrtis does not currently support Earthworks which breach the surface"))
+        
+        self.earthworks = Earthworks(radius_inner, depth_of_axis, axis_height_from_ground)
 
     def append_shell(self, shell):
         """
@@ -771,24 +818,16 @@ class Habitat:
         
         elif self.earthworks != None:
 
-            if self.orientation == "vertical":
-                axis_height_from_ground = 0
-            elif self.orientation == "horizontal":
-                axis_height_from_ground = self.radius_outer
-
-            if self.groundlevel != None:
-                axis_height_from_ground += self.groundlevel.habitat_axis_height
-
             vf_cylinder = self.earthworks.view_factor_ground_cylinder(
-                self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+                self.orientation, self.radius_outer, self.length_outer)
             
             if self.endcap_type == "hemisphere":
                 vf_endcap = self.earthworks.view_factor_ground_hemisphere(
-                    self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+                    self.orientation, self.radius_outer, self.length_outer)
             
             elif self.endcap_type == "flat":
                 vf_endcap = self.earthworks.view_factor_ground_disc(
-                    self.orientation, self.radius_outer, self.length_outer, axis_height_from_ground)
+                    self.orientation, self.radius_outer, self.length_outer)
             
         vf = ((vf_cylinder * self.exposed_area_cylinder) + 
             (vf_endcap * self.exposed_area_endcap)) / (self.exposed_area_cylinder + self.exposed_area_endcap)   
