@@ -29,5 +29,5 @@ setuptools.setup(
     ],                                      # Information to filter the project on PyPi website
     python_requires='>=3.6',               
     py_modules=["syrtis"],           
-    install_requires=["numpy", "matplotlib", "copy"]                   
+    install_requires=["numpy", "matplotlib", "copy", "random"]                   
 )

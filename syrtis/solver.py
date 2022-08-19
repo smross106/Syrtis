@@ -2,8 +2,6 @@
 Contains the Object which solves for a given Habitat and Configuration
 
 """
-from scipy.optimize import minimize
-import copy
 
 from syrtis.habitat import *
 from syrtis.configuration import *
