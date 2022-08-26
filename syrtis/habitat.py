@@ -726,7 +726,7 @@ class Habitat:
                 if 4000 >= Re or Re >= 15000:
                     print("Warning: heat transfer on flat endcap correlation is out of validation range. Proceed with caution")
                 
-                Nu_D = 0.228 * np.power(Re, 0.731) * np.power(Re, 1/3)
+                Nu_D = 0.228 * np.power(Re, 0.731) * np.power(Pr, 1/3)
             
             elif self.orientation == "vertical":
                 Nu_D = self.nusselt_plate_crossflow(v_air, T_air, T_wall, D)
