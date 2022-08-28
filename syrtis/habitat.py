@@ -109,8 +109,8 @@ class Habitat:
         top_view.set_ylim(-max_z, max_z)
         top_view.title.set_text("Plan section view")
 
-        section.set_xlim(-0.2 * max_x, 0.2 * max_x)
-        section.set_ylim(0.95*self._shells[0].radius_outer, max_x*0.82)
+        section.set_xlim(-0.1 * max_x, 0.1 * max_x)
+        section.set_ylim(0.99*self._shells[0].radius_outer, max_x*0.81)
         section.title.set_text("Wall cross-section detail")
 
         # Martian atmosphere
