@@ -1,7 +1,8 @@
+---
   layout: page
   title: "usage-example"
   permalink: /usage/
-
+---
 
 ```python
 from syrtis import *
