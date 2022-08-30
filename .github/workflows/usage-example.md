@@ -1,6 +1,6 @@
-layout: page
-title: "usage-example"
-permalink: /usage/
+  layout: page
+  title: "usage-example"
+  permalink: /usage/
 
 
 ```python
